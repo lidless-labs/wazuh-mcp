@@ -1,0 +1,46 @@
+{
+  "name": "wazuh-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for the Wazuh SIEM/XDR platform",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "wazuh-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "wazuh",
+    "mcp",
+    "siem",
+    "xdr",
+    "security",
+    "model-context-protocol"
+  ],
+  "author": "Solomon Neas <me@solomonneas.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solomonneas/wazuh-mcp.git"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
