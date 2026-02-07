@@ -3,6 +3,7 @@ export interface WazuhConfig {
   username: string;
   password: string;
   verifySsl: boolean;
+  timeout: number;
 }
 
 export function getConfig(): WazuhConfig {
@@ -29,6 +30,7 @@ export function getConfig(): WazuhConfig {
 
   const verifySslStr = process.env.WAZUH_VERIFY_SSL ?? "false";
   const verifySsl = verifySslStr.toLowerCase() === "true";
+  const timeout = parseInt(process.env.WAZUH_TIMEOUT ?? "30", 10) * 1000;
 
-  return { url: url.replace(/\/+$/, ""), username, password, verifySsl };
+  return { url: url.replace(/\/+$/, ""), username, password, verifySsl, timeout };
 }

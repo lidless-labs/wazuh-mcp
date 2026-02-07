@@ -34,12 +34,14 @@ export class WazuhClient {
   private readonly username: string;
   private readonly password: string;
   private readonly verifySsl: boolean;
+  private readonly timeout: number;
 
   constructor(config: WazuhConfig) {
     this.baseUrl = config.url;
     this.username = config.username;
     this.password = config.password;
     this.verifySsl = config.verifySsl;
+    this.timeout = config.timeout;
   }
 
   private get fetchOptions(): RequestInit {
@@ -52,22 +54,43 @@ export class WazuhClient {
     return opts;
   }
 
+  private createAbortSignal(): { signal: AbortSignal; clear: () => void } {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    return {
+      signal: controller.signal,
+      clear: () => clearTimeout(timeoutId),
+    };
+  }
+
   async authenticate(): Promise<string> {
     const credentials = Buffer.from(
       `${this.username}:${this.password}`
     ).toString("base64");
 
-    const response = await fetch(
-      `${this.baseUrl}/security/user/authenticate`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/json",
-        },
-        ...this.fetchOptions,
+    const { signal, clear } = this.createAbortSignal();
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.baseUrl}/security/user/authenticate`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${credentials}`,
+            "Content-Type": "application/json",
+          },
+          signal,
+          ...this.fetchOptions,
+        }
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new WazuhClientError(`Wazuh API authentication timeout after ${this.timeout}ms`);
       }
-    );
+      throw error;
+    } finally {
+      clear();
+    }
 
     if (!response.ok) {
       throw new WazuhAuthenticationError(
@@ -115,12 +138,24 @@ export class WazuhClient {
       "Content-Type": "application/json",
     };
 
-    const response = await fetch(url.toString(), {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      ...this.fetchOptions,
-    });
+    const { signal, clear } = this.createAbortSignal();
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal,
+        ...this.fetchOptions,
+      });
+    } catch (error) {
+      clear();
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new WazuhClientError(`Wazuh API timeout after ${this.timeout}ms`);
+      }
+      throw error;
+    }
+    clear();
 
     // Auto-refresh token on 401
     if (response.status === 401) {
@@ -128,12 +163,24 @@ export class WazuhClient {
       await this.authenticate();
       headers.Authorization = `Bearer ${this.token}`;
 
-      const retryResponse = await fetch(url.toString(), {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-        ...this.fetchOptions,
-      });
+      const { signal: retrySignal, clear: retryClear } = this.createAbortSignal();
+      let retryResponse: Response;
+      try {
+        retryResponse = await fetch(url.toString(), {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: retrySignal,
+          ...this.fetchOptions,
+        });
+      } catch (error) {
+        retryClear();
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new WazuhClientError(`Wazuh API timeout after ${this.timeout}ms`);
+        }
+        throw error;
+      }
+      retryClear();
 
       if (!retryResponse.ok) {
         throw new WazuhClientError(

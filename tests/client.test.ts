@@ -7,6 +7,7 @@ const mockConfig: WazuhConfig = {
   username: "admin",
   password: "secret",
   verifySsl: false,
+  timeout: 30000,
 };
 
 const mockToken = "eyJhbGciOiJIUzI1NiJ9.mock-jwt-token";
