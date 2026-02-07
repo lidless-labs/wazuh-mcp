@@ -1,0 +1,666 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAgentTools } from "../src/tools/agents.js";
+import { registerAlertTools } from "../src/tools/alerts.js";
+import { registerRuleTools } from "../src/tools/rules.js";
+import { registerDecoderTools } from "../src/tools/decoders.js";
+import { registerVersionTools } from "../src/tools/version.js";
+import type { WazuhClient } from "../src/client.js";
+
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: Array<{ type: string; text: string }>;
+  isError?: boolean;
+}>;
+
+// Capture tool handlers registered via server.tool()
+function captureTools(
+  registerFn: (server: McpServer, client: WazuhClient) => void,
+  mockClient: Partial<WazuhClient>
+): Map<string, ToolHandler> {
+  const tools = new Map<string, ToolHandler>();
+
+  const mockServer = {
+    tool: (
+      name: string,
+      _description: string,
+      _schema: unknown,
+      handler: ToolHandler
+    ) => {
+      tools.set(name, handler);
+    },
+  } as unknown as McpServer;
+
+  registerFn(mockServer, mockClient as WazuhClient);
+  return tools;
+}
+
+function parseToolResult(result: {
+  content: Array<{ type: string; text: string }>;
+}): unknown {
+  return JSON.parse(result.content[0].text);
+}
+
+describe("Agent Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getAgents: vi.fn(),
+      getAgent: vi.fn(),
+      getAgentStats: vi.fn(),
+    };
+    tools = captureTools(registerAgentTools, mockClient);
+  });
+
+  describe("list_agents", () => {
+    it("should return formatted agent list", async () => {
+      vi.mocked(mockClient.getAgents!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: "001",
+              name: "server-1",
+              ip: "10.0.0.1",
+              status: "active",
+              group: ["default"],
+              os: { name: "Ubuntu", version: "22.04", platform: "linux" },
+              version: "Wazuh v4.7.0",
+              manager: "wazuh-manager",
+              node_name: "node01",
+              dateAdd: "2026-01-01T00:00:00Z",
+              lastKeepAlive: "2026-01-15T10:00:00Z",
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("list_agents")!;
+      const result = await handler({ limit: 10, offset: 0 });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data).toHaveProperty("agents");
+      expect(data).toHaveProperty("total", 1);
+      const agents = data.agents as Array<Record<string, unknown>>;
+      expect(agents[0].name).toBe("server-1");
+      expect(agents[0].os_name).toBe("Ubuntu");
+    });
+
+    it("should pass status filter to client", async () => {
+      vi.mocked(mockClient.getAgents!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("list_agents")!;
+      await handler({ status: "active", limit: 10, offset: 0 });
+
+      expect(mockClient.getAgents).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "active" })
+      );
+    });
+
+    it("should handle errors gracefully", async () => {
+      vi.mocked(mockClient.getAgents!).mockRejectedValue(
+        new Error("Connection refused")
+      );
+
+      const handler = tools.get("list_agents")!;
+      const result = await handler({ limit: 10, offset: 0 });
+
+      expect(result.isError).toBe(true);
+      const data = parseToolResult(result) as Record<string, unknown>;
+      expect(data.error).toBe("Connection refused");
+    });
+  });
+
+  describe("get_agent", () => {
+    it("should return agent details", async () => {
+      vi.mocked(mockClient.getAgent!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: "001",
+              name: "server-1",
+              ip: "10.0.0.1",
+              status: "active",
+              os: { name: "CentOS", version: "8", platform: "linux" },
+              version: "Wazuh v4.7.0",
+              registerIP: "any",
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_agent")!;
+      const result = await handler({ agent_id: "001" });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.id).toBe("001");
+      expect(data.os_name).toBe("CentOS");
+      expect(data.register_ip).toBe("any");
+    });
+
+    it("should return error for missing agent", async () => {
+      vi.mocked(mockClient.getAgent!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_agent")!;
+      const result = await handler({ agent_id: "999" });
+
+      expect(result.isError).toBe(true);
+      const data = parseToolResult(result) as Record<string, unknown>;
+      expect(data.error).toContain("999");
+    });
+  });
+
+  describe("get_agent_stats", () => {
+    it("should return agent stats with name", async () => {
+      vi.mocked(mockClient.getAgent!).mockResolvedValue({
+        data: {
+          affected_items: [
+            { id: "001", name: "server-1", ip: "10.0.0.1", status: "active" },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+      vi.mocked(mockClient.getAgentStats!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              cpu: { usage_percent: 25.5, cores: 4 },
+              memory: {
+                total_bytes: 8589934592,
+                used_bytes: 4294967296,
+                free_bytes: 4294967296,
+                usage_percent: 50.0,
+              },
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_agent_stats")!;
+      const result = await handler({ agent_id: "001" });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.agent_id).toBe("001");
+      expect(data.agent_name).toBe("server-1");
+      expect(data.cpu).toBeDefined();
+      expect(data.memory).toBeDefined();
+    });
+
+    it("should return error for missing agent", async () => {
+      vi.mocked(mockClient.getAgent!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_agent_stats")!;
+      const result = await handler({ agent_id: "999" });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+});
+
+describe("Alert Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getAlerts: vi.fn(),
+    };
+    tools = captureTools(registerAlertTools, mockClient);
+  });
+
+  describe("get_alerts", () => {
+    it("should return formatted alerts", async () => {
+      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              timestamp: "2026-01-15T10:30:00.000Z",
+              rule: {
+                id: "5710",
+                level: 5,
+                description: "sshd: attempt to login using a denied user",
+                groups: ["sshd", "authentication_failed"],
+              },
+              agent: { id: "001", name: "server-1" },
+              location: "/var/log/auth.log",
+              decoder: { name: "sshd" },
+              full_log: "Jan 15 10:30:00 server sshd: Failed password",
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_alerts")!;
+      const result = await handler({ limit: 10, offset: 0 });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data).toHaveProperty("alerts");
+      const alerts = data.alerts as Array<Record<string, unknown>>;
+      expect(alerts[0].rule_id).toBe("5710");
+      expect(alerts[0].rule_level).toBe(5);
+      expect(alerts[0].agent_name).toBe("server-1");
+    });
+
+    it("should pass level filter as rule_level", async () => {
+      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_alerts")!;
+      await handler({ limit: 10, offset: 0, level: 12 });
+
+      expect(mockClient.getAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({ rule_level: 12 })
+      );
+    });
+  });
+
+  describe("get_alert", () => {
+    it("should return single alert", async () => {
+      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: "alert-123",
+              timestamp: "2026-01-15T10:30:00.000Z",
+              rule: { id: "5710", level: 5, description: "SSH login attempt" },
+              agent: { id: "001", name: "server-1" },
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_alert")!;
+      const result = await handler({ alert_id: "alert-123" });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.id).toBe("alert-123");
+    });
+
+    it("should return error when alert not found", async () => {
+      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_alert")!;
+      const result = await handler({ alert_id: "nonexistent" });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("search_alerts", () => {
+    it("should pass query as search parameter", async () => {
+      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("search_alerts")!;
+      await handler({
+        query: "brute force",
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(mockClient.getAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "brute force" })
+      );
+    });
+
+    it("should include query in response", async () => {
+      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("search_alerts")!;
+      const result = await handler({
+        query: "ssh failed",
+        limit: 10,
+        offset: 0,
+      });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.query).toBe("ssh failed");
+    });
+  });
+});
+
+describe("Rule Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getRules: vi.fn(),
+      getRule: vi.fn(),
+    };
+    tools = captureTools(registerRuleTools, mockClient);
+  });
+
+  describe("list_rules", () => {
+    it("should return formatted rules", async () => {
+      vi.mocked(mockClient.getRules!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: 5710,
+              description: "sshd: attempt to login using a denied user",
+              level: 5,
+              groups: ["sshd"],
+              pci_dss: ["10.2.4"],
+              mitre: { id: ["T1110"], tactic: ["Credential Access"] },
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("list_rules")!;
+      const result = await handler({ limit: 10, offset: 0 });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      const rules = data.rules as Array<Record<string, unknown>>;
+      expect(rules[0].id).toBe(5710);
+      expect(rules[0].pci_dss).toEqual(["10.2.4"]);
+    });
+  });
+
+  describe("get_rule", () => {
+    it("should return rule details", async () => {
+      vi.mocked(mockClient.getRule!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: 5710,
+              description: "sshd: attempt to login using a denied user",
+              level: 5,
+              groups: ["sshd"],
+              filename: "0095-sshd_rules.xml",
+              status: "enabled",
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_rule")!;
+      const result = await handler({ rule_id: 5710 });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.id).toBe(5710);
+      expect(data.filename).toBe("0095-sshd_rules.xml");
+    });
+
+    it("should return error for missing rule", async () => {
+      vi.mocked(mockClient.getRule!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_rule")!;
+      const result = await handler({ rule_id: 99999 });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("search_rules", () => {
+    it("should pass description as search parameter", async () => {
+      vi.mocked(mockClient.getRules!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("search_rules")!;
+      await handler({
+        description: "authentication",
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(mockClient.getRules).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "authentication" })
+      );
+    });
+
+    it("should include description in response", async () => {
+      vi.mocked(mockClient.getRules!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("search_rules")!;
+      const result = await handler({
+        description: "ssh",
+        limit: 10,
+        offset: 0,
+      });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.description).toBe("ssh");
+    });
+  });
+});
+
+describe("Decoder Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getDecoders: vi.fn(),
+    };
+    tools = captureTools(registerDecoderTools, mockClient);
+  });
+
+  describe("list_decoders", () => {
+    it("should return formatted decoders", async () => {
+      vi.mocked(mockClient.getDecoders!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              name: "sshd",
+              filename: "0310-ssh_decoders.xml",
+              status: "enabled",
+              position: 0,
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("list_decoders")!;
+      const result = await handler({ limit: 10, offset: 0 });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      const decoders = data.decoders as Array<Record<string, unknown>>;
+      expect(decoders[0].name).toBe("sshd");
+      expect(decoders[0].filename).toBe("0310-ssh_decoders.xml");
+    });
+
+    it("should pass name filter to client", async () => {
+      vi.mocked(mockClient.getDecoders!).mockResolvedValue({
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("list_decoders")!;
+      await handler({ name: "sshd", limit: 10, offset: 0 });
+
+      expect(mockClient.getDecoders).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "sshd" })
+      );
+    });
+  });
+});
+
+describe("Version Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getVersion: vi.fn(),
+    };
+    tools = captureTools(registerVersionTools, mockClient);
+  });
+
+  describe("get_wazuh_version", () => {
+    it("should return version info", async () => {
+      vi.mocked(mockClient.getVersion!).mockResolvedValue({
+        data: {
+          title: "Wazuh API REST",
+          api_version: "4.7.0",
+          revision: 40700,
+          license_name: "GPL 2.0",
+          license_url: "https://github.com/wazuh/wazuh/blob/master/LICENSE",
+          hostname: "wazuh-manager",
+          timestamp: "2026-01-15T10:00:00Z",
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_wazuh_version")!;
+      const result = await handler({});
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.api_version).toBe("4.7.0");
+      expect(data.hostname).toBe("wazuh-manager");
+      expect(data.license).toBe("GPL 2.0");
+    });
+
+    it("should handle connection errors", async () => {
+      vi.mocked(mockClient.getVersion!).mockRejectedValue(
+        new Error("ECONNREFUSED")
+      );
+
+      const handler = tools.get("get_wazuh_version")!;
+      const result = await handler({});
+
+      expect(result.isError).toBe(true);
+      const data = parseToolResult(result) as Record<string, unknown>;
+      expect(data.error).toBe("ECONNREFUSED");
+    });
+  });
+});
