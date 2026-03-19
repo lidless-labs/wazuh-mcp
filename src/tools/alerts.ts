@@ -1,10 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import type { WazuhIndexerClient } from "../indexer-client.js";
+
+const NO_INDEXER_MSG =
+  "Alerts require WAZUH_INDEXER_URL configuration. Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API.";
 
 export function registerAlertTools(
   server: McpServer,
-  client: WazuhClient
+  _client: WazuhClient,
+  indexerClient?: WazuhIndexerClient
 ): void {
   server.tool(
     "get_alerts",
@@ -46,20 +51,24 @@ export function registerAlertTools(
         .optional()
         .describe("Search term for full_log text"),
     },
-    async ({ limit, offset, level, agent_id, rule_id, sort, search }) => {
-      try {
-        const params: Record<string, string | number> = { limit, offset };
-        if (level !== undefined) params.rule_level = level;
-        if (agent_id) params.agent_id = agent_id;
-        if (rule_id) params.rule_id = rule_id;
-        if (sort) params.sort = sort;
-        if (search) params.search = search;
+    async ({ limit, offset, level, agent_id, rule_id, search }) => {
+      if (!indexerClient) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
+          isError: true,
+        };
+      }
 
-        const response = await client.getAlerts(params);
-        const data = response.data;
+      try {
+        const { alerts, total } = await indexerClient.getRecentAlerts(limit, offset, {
+          level,
+          agent_id,
+          rule_id,
+          search,
+        });
 
         const result = {
-          alerts: data.affected_items.map((alert) => ({
+          alerts: alerts.map((alert) => ({
             id: alert.id,
             timestamp: alert.timestamp,
             rule_id: alert.rule?.id,
@@ -73,7 +82,7 @@ export function registerAlertTools(
             full_log: alert.full_log,
             mitre: alert.rule?.mitre,
           })),
-          total: data.total_affected_items,
+          total,
           limit,
           offset,
         };
@@ -106,11 +115,17 @@ export function registerAlertTools(
         .describe("Alert identifier"),
     },
     async ({ alert_id }) => {
-      try {
-        const response = await client.getAlerts({ search: alert_id, limit: 1 });
-        const data = response.data;
+      if (!indexerClient) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
+          isError: true,
+        };
+      }
 
-        if (data.affected_items.length === 0) {
+      try {
+        const alert = await indexerClient.getAlert(alert_id);
+
+        if (!alert) {
           return {
             content: [
               {
@@ -122,7 +137,6 @@ export function registerAlertTools(
           };
         }
 
-        const alert = data.affected_items[0];
         const result = {
           id: alert.id,
           timestamp: alert.timestamp,
@@ -190,20 +204,21 @@ export function registerAlertTools(
         .describe("Filter by agent ID"),
     },
     async ({ query, limit, offset, level, agent_id }) => {
-      try {
-        const params: Record<string, string | number> = {
-          search: query,
-          limit,
-          offset,
+      if (!indexerClient) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
+          isError: true,
         };
-        if (level !== undefined) params.rule_level = level;
-        if (agent_id) params.agent_id = agent_id;
+      }
 
-        const response = await client.getAlerts(params);
-        const data = response.data;
+      try {
+        const { alerts, total } = await indexerClient.fullTextSearch(query, limit, offset, {
+          level,
+          agent_id,
+        });
 
         const result = {
-          alerts: data.affected_items.map((alert) => ({
+          alerts: alerts.map((alert) => ({
             id: alert.id,
             timestamp: alert.timestamp,
             rule_id: alert.rule?.id,
@@ -217,7 +232,7 @@ export function registerAlertTools(
             full_log: alert.full_log,
             mitre: alert.rule?.mitre,
           })),
-          total: data.total_affected_items,
+          total,
           query,
           limit,
           offset,

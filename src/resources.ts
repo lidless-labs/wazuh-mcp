@@ -1,9 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhClient } from "./client.js";
+import type { WazuhIndexerClient } from "./indexer-client.js";
 
 export function registerResources(
   server: McpServer,
-  client: WazuhClient
+  client: WazuhClient,
+  indexerClient?: WazuhIndexerClient
 ): void {
   server.resource(
     "wazuh-agents",
@@ -49,11 +51,23 @@ export function registerResources(
       mimeType: "application/json",
     },
     async () => {
-      const response = await client.getAlerts({
-        limit: 25,
-        sort: "-timestamp",
-      });
-      const alerts = response.data.affected_items.map((alert) => ({
+      if (!indexerClient) {
+        return {
+          contents: [
+            {
+              uri: "wazuh://alerts/recent",
+              mimeType: "application/json",
+              text: JSON.stringify({
+                error:
+                  "Alerts require WAZUH_INDEXER_URL configuration. Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API.",
+              }),
+            },
+          ],
+        };
+      }
+
+      const { alerts: rawAlerts, total } = await indexerClient.getRecentAlerts(25, 0);
+      const alerts = rawAlerts.map((alert) => ({
         id: alert.id,
         timestamp: alert.timestamp,
         rule_id: alert.rule?.id,
@@ -68,11 +82,7 @@ export function registerResources(
           {
             uri: "wazuh://alerts/recent",
             mimeType: "application/json",
-            text: JSON.stringify(
-              { alerts, total: response.data.total_affected_items },
-              null,
-              2
-            ),
+            text: JSON.stringify({ alerts, total }, null, 2),
           },
         ],
       };

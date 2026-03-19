@@ -4,6 +4,14 @@ export interface WazuhConfig {
   password: string;
   verifySsl: boolean;
   timeout: number;
+  indexer?: IndexerConfig;
+}
+
+export interface IndexerConfig {
+  url: string;
+  username: string;
+  password: string;
+  verifySsl: boolean;
 }
 
 export function getConfig(): WazuhConfig {
@@ -32,5 +40,16 @@ export function getConfig(): WazuhConfig {
   const verifySsl = verifySslStr.toLowerCase() === "true";
   const timeout = parseInt(process.env.WAZUH_TIMEOUT ?? "30", 10) * 1000;
 
-  return { url: url.replace(/\/+$/, ""), username, password, verifySsl, timeout };
+  let indexer: IndexerConfig | undefined;
+  const indexerUrl = process.env.WAZUH_INDEXER_URL;
+  if (indexerUrl) {
+    indexer = {
+      url: indexerUrl.replace(/\/+$/, ""),
+      username: process.env.WAZUH_INDEXER_USERNAME ?? "admin",
+      password: process.env.WAZUH_INDEXER_PASSWORD ?? "",
+      verifySsl: (process.env.WAZUH_INDEXER_VERIFY_SSL ?? "false").toLowerCase() === "true",
+    };
+  }
+
+  return { url: url.replace(/\/+$/, ""), username, password, verifySsl, timeout, indexer };
 }

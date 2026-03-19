@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { getConfig } from "./config.js";
 import { WazuhClient } from "./client.js";
+import { WazuhIndexerClient } from "./indexer-client.js";
 import { registerAgentTools } from "./tools/agents.js";
 import { registerAlertTools } from "./tools/alerts.js";
 import { registerRuleTools } from "./tools/rules.js";
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   }
 
   const client = new WazuhClient(config);
+  const indexerClient = config.indexer ? new WazuhIndexerClient(config.indexer) : undefined;
 
   const server = new McpServer({
     name: "wazuh-mcp",
@@ -29,13 +31,13 @@ async function main(): Promise<void> {
 
   // Register all tools
   registerAgentTools(server, client);
-  registerAlertTools(server, client);
+  registerAlertTools(server, client, indexerClient);
   registerRuleTools(server, client);
   registerDecoderTools(server, client);
   registerVersionTools(server, client);
 
   // Register resources and prompts
-  registerResources(server, client);
+  registerResources(server, client, indexerClient);
   registerPrompts(server);
 
   // Connect via stdio transport
