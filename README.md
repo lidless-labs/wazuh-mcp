@@ -22,6 +22,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for th
 - Node.js 20+
 - A running Wazuh manager with API access (default port 55000)
 - Wazuh API credentials (username/password)
+- (Optional) Wazuh Indexer (OpenSearch) access for alert queries
 
 ## Installation
 
@@ -45,6 +46,19 @@ Set the following environment variables:
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
 
+### Wazuh Indexer (OpenSearch) - Required for Alerts
+
+Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API. To enable alert tools (`get_alerts`, `get_alert`, `search_alerts`) and the `wazuh://alerts/recent` resource, configure the indexer connection:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://10.0.0.2:9200`) |
+| `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
+| `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
+| `WAZUH_INDEXER_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates |
+
+If `WAZUH_INDEXER_URL` is not set, alert tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
+
 ## Usage
 
 ### Claude Desktop
@@ -60,7 +74,10 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
       "env": {
         "WAZUH_URL": "https://your-wazuh-manager:55000",
         "WAZUH_USERNAME": "wazuh-wui",
-        "WAZUH_PASSWORD": "your-password"
+        "WAZUH_PASSWORD": "your-password",
+        "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
+        "WAZUH_INDEXER_USERNAME": "admin",
+        "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
       }
     }
   }
@@ -179,6 +196,7 @@ wazuh-mcp/
 │   ├── index.ts           # MCP server entry point
 │   ├── config.ts          # Environment configuration
 │   ├── client.ts          # Wazuh REST API client (JWT auth)
+│   ├── indexer-client.ts  # Wazuh Indexer (OpenSearch) client
 │   ├── types.ts           # TypeScript type definitions
 │   ├── resources.ts       # MCP resource handlers
 │   ├── prompts.ts         # MCP prompt templates
