@@ -9,6 +9,18 @@ import type {
   WazuhDecoder,
   WazuhVersionInfo,
   WazuhTokenData,
+  WazuhScaPolicy,
+  WazuhScaCheck,
+  WazuhOsInfo,
+  WazuhPackage,
+  WazuhProcess,
+  WazuhPort,
+  WazuhNetIface,
+  WazuhHotfix,
+  WazuhRootcheckResult,
+  WazuhFimFile,
+  WazuhManagerLog,
+  WazuhGroup,
 } from "./types.js";
 
 export class WazuhClientError extends Error {
@@ -269,5 +281,110 @@ export class WazuhClient {
 
   async getVersion(): Promise<WazuhApiResponse<WazuhVersionInfo>> {
     return this.get("/");
+  }
+
+  // --- SCA methods ---
+
+  async getScaPolicies(
+    agentId: string
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhScaPolicy>>> {
+    return this.get(`/sca/${agentId}`);
+  }
+
+  async getScaChecks(
+    agentId: string,
+    policyId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhScaCheck>>> {
+    return this.get(`/sca/${agentId}/checks/${policyId}`, params);
+  }
+
+  // --- Syscollector methods ---
+
+  async getAgentOs(
+    agentId: string
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhOsInfo>>> {
+    return this.get(`/syscollector/${agentId}/os`);
+  }
+
+  async getAgentPackages(
+    agentId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhPackage>>> {
+    return this.get(`/syscollector/${agentId}/packages`, params);
+  }
+
+  async getAgentProcesses(
+    agentId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhProcess>>> {
+    return this.get(`/syscollector/${agentId}/processes`, params);
+  }
+
+  async getAgentPorts(
+    agentId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhPort>>> {
+    return this.get(`/syscollector/${agentId}/ports`, params);
+  }
+
+  async getAgentNetwork(
+    agentId: string
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhNetIface>>> {
+    return this.get(`/syscollector/${agentId}/netiface`);
+  }
+
+  async getAgentHotfixes(
+    agentId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhHotfix>>> {
+    return this.get(`/syscollector/${agentId}/hotfixes`, params);
+  }
+
+  // --- Rootcheck methods ---
+
+  async getRootcheck(
+    agentId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhRootcheckResult>>> {
+    return this.get(`/rootcheck/${agentId}`, params);
+  }
+
+  // --- Syscheck / FIM methods ---
+
+  async getFimFiles(
+    agentId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhFimFile>>> {
+    return this.get(`/syscheck/${agentId}`, params);
+  }
+
+  // --- Manager methods ---
+
+  async getManagerLogs(
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhManagerLog>>> {
+    return this.get("/manager/logs", params);
+  }
+
+  async getManagerConfig(
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<Record<string, unknown>>> {
+    return this.get("/manager/configuration", params);
+  }
+
+  // --- Group methods ---
+
+  async getGroups(
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhGroup>>> {
+    return this.get("/groups", params);
+  }
+
+  async getGroupAgents(
+    groupId: string,
+    params: Record<string, string | number> = {}
+  ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhAgent>>> {
+    return this.get(`/groups/${groupId}/agents`, params);
   }
 }

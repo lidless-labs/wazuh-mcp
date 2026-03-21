@@ -1,0 +1,85 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import type { WazuhClient } from "../client.js";
+
+export function registerSyscheckTools(
+  server: McpServer,
+  client: WazuhClient
+): void {
+  server.tool(
+    "get_fim_files",
+    "Get File Integrity Monitoring (FIM) results for a Wazuh agent — shows monitored files, registry keys, and detected changes",
+    {
+      agent_id: z
+        .string()
+        .describe("Agent identifier (e.g., '001')"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .default(25)
+        .describe("Maximum number of results to return (1-500)"),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .default(0)
+        .describe("Pagination offset"),
+      search: z
+        .string()
+        .optional()
+        .describe("Filter by file path or name"),
+      type: z
+        .enum(["file", "registry_key", "registry_value"])
+        .optional()
+        .describe("Filter by entry type: file, registry_key, or registry_value"),
+    },
+    async ({ agent_id, limit, offset, search, type }) => {
+      try {
+        const params: Record<string, string | number> = { limit, offset };
+        if (search) params.search = search;
+        if (type) params.type = type;
+
+        const response = await client.getFimFiles(agent_id, params);
+        const data = response.data;
+
+        const result = {
+          agent_id,
+          files: data.affected_items.map((entry) => ({
+            file: entry.file,
+            type: entry.type,
+            date: entry.date,
+            mtime: entry.mtime,
+            size: entry.size,
+            perm: entry.perm,
+            uname: entry.uname,
+            gname: entry.gname,
+            md5: entry.md5,
+            sha256: entry.sha256,
+            changed_attributes: entry.changed_attributes,
+          })),
+          total: data.total_affected_items,
+          limit,
+          offset,
+        };
+
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+}

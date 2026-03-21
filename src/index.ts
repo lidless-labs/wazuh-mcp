@@ -8,6 +8,12 @@ import { registerAlertTools } from "./tools/alerts.js";
 import { registerRuleTools } from "./tools/rules.js";
 import { registerDecoderTools } from "./tools/decoders.js";
 import { registerVersionTools } from "./tools/version.js";
+import { registerScaTools } from "./tools/sca.js";
+import { registerSyscollectorTools } from "./tools/syscollector.js";
+import { registerRootcheckTools } from "./tools/rootcheck.js";
+import { registerSyscheckTools } from "./tools/syscheck.js";
+import { registerManagerTools } from "./tools/manager.js";
+import { registerGroupTools } from "./tools/groups.js";
 import { registerResources } from "./resources.js";
 import { registerPrompts } from "./prompts.js";
 
@@ -35,6 +41,12 @@ async function main(): Promise<void> {
   registerRuleTools(server, client);
   registerDecoderTools(server, client);
   registerVersionTools(server, client);
+  registerScaTools(server, client);
+  registerSyscollectorTools(server, client);
+  registerRootcheckTools(server, client);
+  registerSyscheckTools(server, client);
+  registerManagerTools(server, client);
+  registerGroupTools(server, client);
 
   // Register resources and prompts
   registerResources(server, client, indexerClient);
