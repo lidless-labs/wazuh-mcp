@@ -84,6 +84,32 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 }
 ```
 
+### OpenClaw
+
+Add to your `openclaw.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "wazuh": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/path/to/wazuh-mcp/dist/index.js"],
+        "env": {
+          "WAZUH_URL": "https://your-wazuh-manager:55000",
+          "WAZUH_USERNAME": "wazuh-wui",
+          "WAZUH_PASSWORD": "your-password",
+          "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
+          "WAZUH_INDEXER_USERNAME": "admin",
+          "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
+        }
+      }
+    }
+  }
+}
+```
+
 ### Standalone
 
 ```bash
