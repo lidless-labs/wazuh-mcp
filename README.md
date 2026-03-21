@@ -9,7 +9,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for th
 
 ## Features
 
-- **11 MCP Tools** - Agents, alerts, rules, decoders, and version info
+- **25 MCP Tools** - Agents, alerts, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, and manager
 - **3 MCP Resources** - Pre-built views for agents, recent alerts, and rule summaries
 - **3 MCP Prompts** - Alert investigation, agent health checks, and security overviews
 - **JWT Authentication** - Automatic token management with refresh on expiry
@@ -127,6 +127,45 @@ npm test       # Run tests
 | `get_rule` | Get full rule details including compliance mappings |
 | `search_rules` | Search rules by description text |
 
+### SCA Tools (Security Configuration Assessment)
+
+| Tool | Description |
+|------|-------------|
+| `get_sca_policies` | List SCA policies and scores for an agent (CIS benchmarks, etc.) |
+| `get_sca_checks` | Get individual check results with remediation steps and compliance mappings |
+
+### Syscollector Tools (System Inventory)
+
+| Tool | Description |
+|------|-------------|
+| `get_agent_os` | Get OS information (name, version, architecture, hostname) |
+| `get_agent_packages` | List installed software packages with versions |
+| `get_agent_processes` | List running processes with PIDs and command lines |
+| `get_agent_ports` | List open network ports with associated processes |
+| `get_agent_network` | List network interfaces and IP addresses |
+| `get_agent_hotfixes` | List installed Windows hotfixes/patches |
+
+### FIM & Rootcheck Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_fim_files` | Get File Integrity Monitoring results (files, registry keys, hashes) |
+| `get_rootcheck` | Get rootkit detection scan findings |
+
+### Manager Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_manager_logs` | Get Wazuh manager logs filtered by level and module |
+| `get_manager_config` | Get active manager configuration by section |
+
+### Group Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_groups` | List all agent groups |
+| `get_group_agents` | List agents in a specific group |
+
 ### Other Tools
 
 | Tool | Description |
@@ -205,7 +244,13 @@ wazuh-mcp/
 │       ├── alerts.ts      # Alert query tools
 │       ├── rules.ts       # Rule query tools
 │       ├── decoders.ts    # Decoder listing tool
-│       └── version.ts     # Version info tool
+│       ├── version.ts     # Version info tool
+│       ├── sca.ts         # Security Configuration Assessment
+│       ├── syscollector.ts # System inventory (OS, packages, ports, etc.)
+│       ├── syscheck.ts    # File Integrity Monitoring
+│       ├── rootcheck.ts   # Rootkit detection
+│       ├── manager.ts     # Manager logs and configuration
+│       └── groups.ts      # Agent group management
 ├── tests/
 │   ├── client.test.ts     # API client unit tests
 │   └── tools.test.ts      # Tool handler unit tests
