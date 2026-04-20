@@ -63,14 +63,13 @@ If `WAZUH_INDEXER_URL` is not set, alert tools will return a helpful configurati
 
 ### Claude Desktop
 
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
   "mcpServers": {
     "wazuh": {
-      "command": "node",
-      "args": ["/path/to/wazuh-mcp/dist/index.js"],
+      "command": "wazuh-mcp",
       "env": {
         "WAZUH_URL": "https://your-wazuh-manager:55000",
         "WAZUH_USERNAME": "wazuh-wui",
@@ -84,30 +83,131 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 }
 ```
 
+### Claude Code
+
+```bash
+claude mcp add wazuh \
+  --env WAZUH_URL=https://your-wazuh-manager:55000 \
+  --env WAZUH_USERNAME=wazuh-wui \
+  --env WAZUH_PASSWORD=your-password \
+  --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
+  --env WAZUH_INDEXER_USERNAME=admin \
+  --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
+  -- wazuh-mcp
+```
+
+Add `--scope user` to make it available from any directory instead of only the current project.
+
 ### OpenClaw
 
-Add to your `openclaw.json`:
+If you're running from a source checkout instead of the npm-installed binary, point `command`/`args` at the built `dist/index.js`:
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "wazuh": {
-        "type": "stdio",
-        "command": "node",
-        "args": ["/path/to/wazuh-mcp/dist/index.js"],
-        "env": {
-          "WAZUH_URL": "https://your-wazuh-manager:55000",
-          "WAZUH_USERNAME": "wazuh-wui",
-          "WAZUH_PASSWORD": "your-password",
-          "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
-          "WAZUH_INDEXER_USERNAME": "admin",
-          "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
-        }
-      }
-    }
+```bash
+openclaw mcp set wazuh '{
+  "command": "node",
+  "args": ["/absolute/path/to/wazuh-mcp/dist/index.js"],
+  "env": {
+    "WAZUH_URL": "https://your-wazuh-manager:55000",
+    "WAZUH_USERNAME": "wazuh-wui",
+    "WAZUH_PASSWORD": "your-password",
+    "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
+    "WAZUH_INDEXER_USERNAME": "admin",
+    "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
   }
-}
+}'
+```
+
+Or, with the global npm install:
+
+```bash
+openclaw mcp set wazuh '{
+  "command": "wazuh-mcp",
+  "env": {
+    "WAZUH_URL": "https://your-wazuh-manager:55000",
+    "WAZUH_USERNAME": "wazuh-wui",
+    "WAZUH_PASSWORD": "your-password",
+    "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
+    "WAZUH_INDEXER_USERNAME": "admin",
+    "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
+  }
+}'
+```
+
+Then restart the OpenClaw gateway so the new server is picked up:
+
+```bash
+systemctl --user restart openclaw-gateway
+openclaw mcp list   # confirm "wazuh" is registered
+```
+
+### Hermes Agent
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) reads MCP config from `~/.hermes/config.yaml` under the `mcp_servers` key. Add an entry:
+
+```yaml
+mcp_servers:
+  wazuh:
+    command: "wazuh-mcp"
+    env:
+      WAZUH_URL: "https://your-wazuh-manager:55000"
+      WAZUH_USERNAME: "wazuh-wui"
+      WAZUH_PASSWORD: "your-password"
+      WAZUH_INDEXER_URL: "https://your-wazuh-indexer:9200"
+      WAZUH_INDEXER_USERNAME: "admin"
+      WAZUH_INDEXER_PASSWORD: "your-indexer-password"
+```
+
+Or, when running from a source checkout instead of the global npm install:
+
+```yaml
+mcp_servers:
+  wazuh:
+    command: "node"
+    args: ["/absolute/path/to/wazuh-mcp/dist/index.js"]
+    env:
+      WAZUH_URL: "https://your-wazuh-manager:55000"
+      WAZUH_USERNAME: "wazuh-wui"
+      WAZUH_PASSWORD: "your-password"
+      WAZUH_INDEXER_URL: "https://your-wazuh-indexer:9200"
+      WAZUH_INDEXER_USERNAME: "admin"
+      WAZUH_INDEXER_PASSWORD: "your-indexer-password"
+```
+
+Then reload MCP from inside a Hermes session:
+
+```
+/reload-mcp
+```
+
+### Codex CLI
+
+[Codex CLI](https://github.com/openai/codex) registers MCP servers via `codex mcp add`:
+
+```bash
+codex mcp add wazuh \
+  --env WAZUH_URL=https://your-wazuh-manager:55000 \
+  --env WAZUH_USERNAME=wazuh-wui \
+  --env WAZUH_PASSWORD=your-password \
+  --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
+  --env WAZUH_INDEXER_USERNAME=admin \
+  --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
+  -- wazuh-mcp
+```
+
+Or, when running from a source checkout:
+
+```bash
+codex mcp add wazuh \
+  --env WAZUH_URL=https://your-wazuh-manager:55000 \
+  --env WAZUH_USERNAME=wazuh-wui \
+  --env WAZUH_PASSWORD=your-password \
+  -- node /absolute/path/to/wazuh-mcp/dist/index.js
+```
+
+Codex writes the entry to `~/.codex/config.toml` under `[mcp_servers.wazuh]`. Verify with:
+
+```bash
+codex mcp list
 ```
 
 ### Standalone
