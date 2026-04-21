@@ -6,6 +6,7 @@ import { registerRuleTools } from "../src/tools/rules.js";
 import { registerDecoderTools } from "../src/tools/decoders.js";
 import { registerVersionTools } from "../src/tools/version.js";
 import type { WazuhClient } from "../src/client.js";
+import type { WazuhIndexerClient } from "../src/indexer-client.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: Array<{ type: string; text: string }>;
@@ -14,8 +15,9 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 
 // Capture tool handlers registered via server.tool()
 function captureTools(
-  registerFn: (server: McpServer, client: WazuhClient) => void,
-  mockClient: Partial<WazuhClient>
+  registerFn: (server: McpServer, client: WazuhClient, indexerClient?: WazuhIndexerClient) => void,
+  mockClient: Partial<WazuhClient>,
+  mockIndexerClient?: Partial<WazuhIndexerClient>
 ): Map<string, ToolHandler> {
   const tools = new Map<string, ToolHandler>();
 
@@ -30,7 +32,11 @@ function captureTools(
     },
   } as unknown as McpServer;
 
-  registerFn(mockServer, mockClient as WazuhClient);
+  registerFn(
+    mockServer,
+    mockClient as WazuhClient,
+    mockIndexerClient as WazuhIndexerClient | undefined
+  );
   return tools;
 }
 
@@ -245,40 +251,39 @@ describe("Agent Tools", () => {
 
 describe("Alert Tools", () => {
   let mockClient: Partial<WazuhClient>;
+  let mockIndexerClient: Partial<WazuhIndexerClient>;
   let tools: Map<string, ToolHandler>;
 
   beforeEach(() => {
-    mockClient = {
-      getAlerts: vi.fn(),
+    mockClient = {};
+    mockIndexerClient = {
+      getRecentAlerts: vi.fn(),
+      getAlert: vi.fn(),
+      fullTextSearch: vi.fn(),
     };
-    tools = captureTools(registerAlertTools, mockClient);
+    tools = captureTools(registerAlertTools, mockClient, mockIndexerClient);
   });
 
   describe("get_alerts", () => {
     it("should return formatted alerts", async () => {
-      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
-        data: {
-          affected_items: [
-            {
-              timestamp: "2026-01-15T10:30:00.000Z",
-              rule: {
-                id: "5710",
-                level: 5,
-                description: "sshd: attempt to login using a denied user",
-                groups: ["sshd", "authentication_failed"],
-              },
-              agent: { id: "001", name: "server-1" },
-              location: "/var/log/auth.log",
-              decoder: { name: "sshd" },
-              full_log: "Jan 15 10:30:00 server sshd: Failed password",
+      vi.mocked(mockIndexerClient.getRecentAlerts!).mockResolvedValue({
+        alerts: [
+          {
+            id: "alert-123",
+            timestamp: "2026-01-15T10:30:00.000Z",
+            rule: {
+              id: "5710",
+              level: 5,
+              description: "sshd: attempt to login using a denied user",
+              groups: ["sshd", "authentication_failed"],
             },
-          ],
-          total_affected_items: 1,
-          failed_items: [],
-          total_failed_items: 0,
-        },
-        error: 0,
-        message: "ok",
+            agent: { id: "001", name: "server-1" },
+            location: "/var/log/auth.log",
+            decoder: { name: "sshd" },
+            full_log: "Jan 15 10:30:00 server sshd: Failed password",
+          },
+        ],
+        total: 1,
       });
 
       const handler = tools.get("get_alerts")!;
@@ -292,46 +297,31 @@ describe("Alert Tools", () => {
       expect(alerts[0].agent_name).toBe("server-1");
     });
 
-    it("should pass level filter as rule_level", async () => {
-      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
-        data: {
-          affected_items: [],
-          total_affected_items: 0,
-          failed_items: [],
-          total_failed_items: 0,
-        },
-        error: 0,
-        message: "ok",
+    it("should pass level filter through to the indexer client", async () => {
+      vi.mocked(mockIndexerClient.getRecentAlerts!).mockResolvedValue({
+        alerts: [],
+        total: 0,
       });
 
       const handler = tools.get("get_alerts")!;
       await handler({ limit: 10, offset: 0, level: 12 });
 
-      expect(mockClient.getAlerts).toHaveBeenCalledWith(
-        expect.objectContaining({ rule_level: 12 })
+      expect(mockIndexerClient.getRecentAlerts).toHaveBeenCalledWith(
+        10,
+        0,
+        expect.objectContaining({ level: 12 })
       );
     });
   });
 
   describe("get_alert", () => {
     it("should return single alert", async () => {
-      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
-        data: {
-          affected_items: [
-            {
-              id: "alert-123",
-              timestamp: "2026-01-15T10:30:00.000Z",
-              rule: { id: "5710", level: 5, description: "SSH login attempt" },
-              agent: { id: "001", name: "server-1" },
-            },
-          ],
-          total_affected_items: 1,
-          failed_items: [],
-          total_failed_items: 0,
-        },
-        error: 0,
-        message: "ok",
-      });
+      vi.mocked(mockIndexerClient.getAlert!).mockResolvedValue({
+        id: "alert-123",
+        timestamp: "2026-01-15T10:30:00.000Z",
+        rule: { id: "5710", level: 5, description: "SSH login attempt" },
+        agent: { id: "001", name: "server-1" },
+      } as never);
 
       const handler = tools.get("get_alert")!;
       const result = await handler({ alert_id: "alert-123" });
@@ -341,16 +331,7 @@ describe("Alert Tools", () => {
     });
 
     it("should return error when alert not found", async () => {
-      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
-        data: {
-          affected_items: [],
-          total_affected_items: 0,
-          failed_items: [],
-          total_failed_items: 0,
-        },
-        error: 0,
-        message: "ok",
-      });
+      vi.mocked(mockIndexerClient.getAlert!).mockResolvedValue(null);
 
       const handler = tools.get("get_alert")!;
       const result = await handler({ alert_id: "nonexistent" });
@@ -361,15 +342,9 @@ describe("Alert Tools", () => {
 
   describe("search_alerts", () => {
     it("should pass query as search parameter", async () => {
-      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
-        data: {
-          affected_items: [],
-          total_affected_items: 0,
-          failed_items: [],
-          total_failed_items: 0,
-        },
-        error: 0,
-        message: "ok",
+      vi.mocked(mockIndexerClient.fullTextSearch!).mockResolvedValue({
+        alerts: [],
+        total: 0,
       });
 
       const handler = tools.get("search_alerts")!;
@@ -379,21 +354,18 @@ describe("Alert Tools", () => {
         offset: 0,
       });
 
-      expect(mockClient.getAlerts).toHaveBeenCalledWith(
-        expect.objectContaining({ search: "brute force" })
+      expect(mockIndexerClient.fullTextSearch).toHaveBeenCalledWith(
+        "brute force",
+        10,
+        0,
+        { level: undefined, agent_id: undefined }
       );
     });
 
     it("should include query in response", async () => {
-      vi.mocked(mockClient.getAlerts!).mockResolvedValue({
-        data: {
-          affected_items: [],
-          total_affected_items: 0,
-          failed_items: [],
-          total_failed_items: 0,
-        },
-        error: 0,
-        message: "ok",
+      vi.mocked(mockIndexerClient.fullTextSearch!).mockResolvedValue({
+        alerts: [],
+        total: 0,
       });
 
       const handler = tools.get("search_alerts")!;
