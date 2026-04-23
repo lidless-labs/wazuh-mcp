@@ -20,3 +20,8 @@ TASK_*.md
 IMPLEMENTATION_*.md
 *_SUMMARY.md
 POLISH_NOTES.md
+
+# Claude Code session files (never commit)
+.claude/
+.codex/
+.learnings/
