@@ -20,6 +20,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for th
 ## Prerequisites
 
 - Node.js 20+
+<!-- content-guard: allow port-reference -->
 - A running Wazuh manager with API access (default port 55000)
 - Wazuh API credentials (username/password)
 - (Optional) Wazuh Indexer (OpenSearch) access for alert queries
@@ -39,6 +40,7 @@ Set the following environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+<!-- content-guard: allow private-ipv4 -->
 | `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://10.0.0.2:55000`) |
 | `WAZUH_USERNAME` | Yes | - | API username |
 | `WAZUH_PASSWORD` | Yes | - | API password |
@@ -52,6 +54,7 @@ Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API. To 
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+<!-- content-guard: allow private-ipv4 -->
 | `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://10.0.0.2:9200`) |
 | `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
 | `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
