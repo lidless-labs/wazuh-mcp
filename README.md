@@ -1,9 +1,24 @@
-# wazuh-mcp
+<p align="center">
+  <img src="docs/assets/wazuh-mcp-banner.jpg" alt="wazuh-mcp banner">
+</p>
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
-[![MCP](https://img.shields.io/badge/MCP-1.12-purple.svg)](https://modelcontextprotocol.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<h1 align="center">wazuh-mcp</h1>
+
+<p align="center">
+  <strong>MCP server for Wazuh SIEM/XDR platform integration.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/actions/workflow/status/solomonneas/wazuh-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
+  <img src="https://img.shields.io/npm/v/wazuh-mcp?style=for-the-badge&logo=npm&logoColor=white" alt="npm version">
+  <img src="https://img.shields.io/badge/typescript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript 6.0">
+  <img src="https://img.shields.io/badge/node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 20+">
+  <img src="https://img.shields.io/badge/MCP-SDK_1.29-7c3aed?style=for-the-badge" alt="MCP SDK 1.29">
+  <img src="https://img.shields.io/badge/Wazuh-SIEM%2FXDR-3385ff?style=for-the-badge" alt="Wazuh SIEM/XDR">
+  <img src="https://img.shields.io/badge/MITRE_ATT%26CK-mapped-0f766e?style=for-the-badge" alt="MITRE ATT&CK mapped">
+  <img src="https://img.shields.io/badge/Vitest-4-6E9F18?style=for-the-badge&logo=vitest&logoColor=white" alt="Vitest 4">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+</p>
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. Query agents, security alerts, detection rules, and decoders directly from Claude or any MCP-compatible client.
 
