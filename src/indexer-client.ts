@@ -1,5 +1,5 @@
 import type { IndexerConfig } from "./config.js";
-import type { WazuhAlert } from "./types.js";
+import type { WazuhAlert, WazuhVulnerability } from "./types.js";
 
 export class WazuhIndexerError extends Error {
   constructor(
@@ -22,6 +22,24 @@ interface OpenSearchResponse {
     total: { value: number; relation: string };
     hits: OpenSearchHit[];
   };
+}
+
+interface AlertFilters {
+  level?: number;
+  agent_id?: string;
+  rule_id?: string;
+  search?: string;
+  start_time?: string;
+  end_time?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+interface VulnerabilityFilters {
+  cve_id?: string;
+  agent_id?: string;
+  severity?: string;
+  package_name?: string;
+  search?: string;
 }
 
 export class WazuhIndexerClient {
@@ -143,6 +161,69 @@ export class WazuhIndexerClient {
     };
   }
 
+  private mapHitToVulnerability(hit: OpenSearchHit): WazuhVulnerability {
+    const s = hit._source as Record<string, unknown>;
+    const agent = s.agent as Record<string, unknown> | undefined;
+    const host = s.host as Record<string, unknown> | undefined;
+    const hostOs = host?.os as Record<string, unknown> | undefined;
+    const pkg = s.package as Record<string, unknown> | undefined;
+    const vulnerability = s.vulnerability as Record<string, unknown> | undefined;
+    const score = vulnerability?.score as Record<string, unknown> | undefined;
+
+    return {
+      id: hit._id,
+      agent: agent
+        ? {
+            id: agent.id as string | undefined,
+            name: agent.name as string | undefined,
+            version: agent.version as string | undefined,
+          }
+        : undefined,
+      host: hostOs
+        ? {
+            os: {
+              full: hostOs.full as string | undefined,
+              kernel: hostOs.kernel as string | undefined,
+              name: hostOs.name as string | undefined,
+              platform: hostOs.platform as string | undefined,
+              type: hostOs.type as string | undefined,
+              version: hostOs.version as string | undefined,
+            },
+          }
+        : undefined,
+      package: pkg
+        ? {
+            architecture: pkg.architecture as string | undefined,
+            description: pkg.description as string | undefined,
+            installed: pkg.installed as string | undefined,
+            name: pkg.name as string | undefined,
+            size: pkg.size as number | undefined,
+            type: pkg.type as string | undefined,
+            version: pkg.version as string | undefined,
+          }
+        : undefined,
+      vulnerability: vulnerability
+        ? {
+            category: vulnerability.category as string | undefined,
+            classification: vulnerability.classification as string | undefined,
+            description: vulnerability.description as string | undefined,
+            detected_at: vulnerability.detected_at as string | undefined,
+            enumeration: vulnerability.enumeration as string | undefined,
+            id: vulnerability.id as string | undefined,
+            published_at: vulnerability.published_at as string | undefined,
+            reference: vulnerability.reference as string | undefined,
+            score: score
+              ? {
+                  base: score.base as number | undefined,
+                  version: score.version as string | undefined,
+                }
+              : undefined,
+            severity: vulnerability.severity as string | undefined,
+          }
+        : undefined,
+    };
+  }
+
   async searchAlerts(
     query: Record<string, unknown>,
     size: number,
@@ -154,6 +235,7 @@ export class WazuhIndexerClient {
       size,
       from,
       sort: [{ timestamp: { order: sortOrder } }],
+      track_total_hits: true,
     };
 
     const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
@@ -166,13 +248,7 @@ export class WazuhIndexerClient {
   async getRecentAlerts(
     limit: number,
     offset: number,
-    filters?: {
-      level?: number;
-      agent_id?: string;
-      rule_id?: string;
-      search?: string;
-      sortOrder?: "asc" | "desc";
-    }
+    filters?: AlertFilters
   ): Promise<{ alerts: WazuhAlert[]; total: number }> {
     const must: unknown[] = [];
 
@@ -190,8 +266,15 @@ export class WazuhIndexerClient {
         multi_match: {
           query: filters.search,
           fields: ["full_log", "rule.description", "agent.name"],
+          type: "best_fields",
         },
       });
+    }
+    if (filters?.start_time || filters?.end_time) {
+      const timestampRange: Record<string, string> = {};
+      if (filters.start_time) timestampRange.gte = filters.start_time;
+      if (filters.end_time) timestampRange.lte = filters.end_time;
+      must.push({ range: { timestamp: timestampRange } });
     }
 
     const query = must.length > 0 ? { bool: { must } } : { match_all: {} };
@@ -202,6 +285,7 @@ export class WazuhIndexerClient {
     const body = {
       query: { ids: { values: [id] } },
       size: 1,
+      track_total_hits: true,
     };
 
     const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
@@ -213,13 +297,14 @@ export class WazuhIndexerClient {
     query: string,
     limit: number,
     offset: number,
-    filters?: { level?: number; agent_id?: string }
+    filters?: AlertFilters
   ): Promise<{ alerts: WazuhAlert[]; total: number }> {
     const must: unknown[] = [
       {
         multi_match: {
           query,
           fields: ["full_log", "rule.description", "agent.name"],
+          type: "best_fields",
         },
       },
     ];
@@ -230,7 +315,57 @@ export class WazuhIndexerClient {
     if (filters?.agent_id) {
       must.push({ term: { "agent.id": filters.agent_id } });
     }
+    if (filters?.start_time || filters?.end_time) {
+      const timestampRange: Record<string, string> = {};
+      if (filters.start_time) timestampRange.gte = filters.start_time;
+      if (filters.end_time) timestampRange.lte = filters.end_time;
+      must.push({ range: { timestamp: timestampRange } });
+    }
 
     return this.searchAlerts({ bool: { must } }, limit, offset);
+  }
+
+  async searchVulnerabilities(
+    limit: number,
+    offset: number,
+    filters: VulnerabilityFilters = {}
+  ): Promise<{ vulnerabilities: WazuhVulnerability[]; total: number }> {
+    const must: unknown[] = [];
+
+    if (filters.cve_id) {
+      must.push({ term: { "vulnerability.id": filters.cve_id } });
+    }
+    if (filters.agent_id) {
+      must.push({ term: { "agent.id": filters.agent_id } });
+    }
+    if (filters.severity) {
+      must.push({ term: { "vulnerability.severity": filters.severity } });
+    }
+    if (filters.package_name) {
+      must.push({ match: { "package.name": filters.package_name } });
+    }
+    if (filters.search) {
+      must.push({
+        multi_match: {
+          query: filters.search,
+          fields: ["vulnerability.id", "vulnerability.description", "package.name", "agent.name"],
+          type: "best_fields",
+        },
+      });
+    }
+
+    const body = {
+      query: must.length > 0 ? { bool: { must } } : { match_all: {} },
+      size: limit,
+      from: offset,
+      sort: [{ "vulnerability.detected_at": { order: "desc", unmapped_type: "date" } }],
+      track_total_hits: true,
+    };
+
+    const result = await this.post<OpenSearchResponse>("/wazuh-states-vulnerabilities*/_search", body);
+    return {
+      vulnerabilities: result.hits.hits.map((h) => this.mapHitToVulnerability(h)),
+      total: result.hits.total.value,
+    };
   }
 }

@@ -10,6 +10,7 @@ import { registerGroupTools } from "../src/tools/groups.js";
 import { registerManagerTools } from "../src/tools/manager.js";
 import { registerSyscheckTools } from "../src/tools/syscheck.js";
 import { registerSyscollectorTools } from "../src/tools/syscollector.js";
+import { registerVulnerabilityTools } from "../src/tools/vulnerabilities.js";
 import type { WazuhClient } from "../src/client.js";
 import type { WazuhConfig } from "../src/config.js";
 import type { WazuhIndexerClient } from "../src/indexer-client.js";
@@ -74,6 +75,29 @@ function captureDiagnosticTools(
     mockServer,
     mockClient as WazuhClient,
     mockConfig,
+    mockIndexerClient as WazuhIndexerClient | undefined
+  );
+  return tools;
+}
+
+function captureVulnerabilityTools(
+  mockIndexerClient?: Partial<WazuhIndexerClient>
+): Map<string, ToolHandler> {
+  const tools = new Map<string, ToolHandler>();
+
+  const mockServer = {
+    tool: (
+      name: string,
+      _description: string,
+      _schema: unknown,
+      handler: ToolHandler
+    ) => {
+      tools.set(name, handler);
+    },
+  } as unknown as McpServer;
+
+  registerVulnerabilityTools(
+    mockServer,
     mockIndexerClient as WazuhIndexerClient | undefined
   );
   return tools;
@@ -448,6 +472,30 @@ describe("Alert Tools", () => {
       );
       expect(data.sort).toBe("+timestamp");
     });
+
+    it("should pass time range filters through to the indexer client", async () => {
+      vi.mocked(mockIndexerClient.getRecentAlerts!).mockResolvedValue({
+        alerts: [],
+        total: 0,
+      });
+
+      const handler = tools.get("get_alerts")!;
+      await handler({
+        limit: 10,
+        offset: 0,
+        start_time: "2026-01-01T00:00:00.000Z",
+        end_time: "2026-01-02T00:00:00.000Z",
+      });
+
+      expect(mockIndexerClient.getRecentAlerts).toHaveBeenCalledWith(
+        10,
+        0,
+        expect.objectContaining({
+          start_time: "2026-01-01T00:00:00.000Z",
+          end_time: "2026-01-02T00:00:00.000Z",
+        })
+      );
+    });
   });
 
   describe("get_alert", () => {
@@ -637,6 +685,105 @@ describe("Diagnostic Tools", () => {
     expect(result.isError).toBe(true);
     expect(data.status).toBe("error");
     expect(result.content[0].text).toContain("ECONNREFUSED");
+  });
+});
+
+describe("Vulnerability Tools", () => {
+  let mockIndexerClient: Partial<WazuhIndexerClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockIndexerClient = {
+      searchVulnerabilities: vi.fn(),
+    };
+    tools = captureVulnerabilityTools(mockIndexerClient);
+  });
+
+  it("should return a configuration error when indexer is missing", async () => {
+    const noIndexerTools = captureVulnerabilityTools();
+    const handler = noIndexerTools.get("list_vulnerabilities")!;
+    const result = await handler({ limit: 10, offset: 0 });
+
+    expect(result.isError).toBe(true);
+    const data = parseToolResult(result) as Record<string, unknown>;
+    expect(data.error).toContain("WAZUH_INDEXER_URL");
+  });
+
+  it("should list formatted vulnerability inventory", async () => {
+    vi.mocked(mockIndexerClient.searchVulnerabilities!).mockResolvedValue({
+      vulnerabilities: [
+        {
+          id: "001_package_CVE-2020-14393",
+          agent: { id: "001", name: "server-1" },
+          package: { name: "perl-DBI", version: "1.627-4.el7", type: "rpm" },
+          vulnerability: {
+            id: "CVE-2020-14393",
+            severity: "Low",
+            detected_at: "2024-12-11T00:14:31.360Z",
+            description: "Sensitive vulnerability description",
+            score: { base: 3.6, version: "2.0" },
+          },
+        },
+      ],
+      total: 1,
+    });
+
+    const handler = tools.get("list_vulnerabilities")!;
+    const result = await handler({
+      limit: 10,
+      offset: 0,
+      cve_id: "CVE-2020-14393",
+      agent_id: "001",
+      severity: "Low",
+    });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const vulnerabilities = data.vulnerabilities as Array<Record<string, unknown>>;
+
+    expect(mockIndexerClient.searchVulnerabilities).toHaveBeenCalledWith(
+      10,
+      0,
+      expect.objectContaining({
+        cve_id: "CVE-2020-14393",
+        agent_id: "001",
+        severity: "Low",
+      })
+    );
+    expect(vulnerabilities[0].cve_id).toBe("CVE-2020-14393");
+    expect(vulnerabilities[0].package_name).toBe("perl-DBI");
+    expect(vulnerabilities[0].description).toBeUndefined();
+  });
+
+  it("should include vulnerability descriptions only when requested", async () => {
+    vi.mocked(mockIndexerClient.searchVulnerabilities!).mockResolvedValue({
+      vulnerabilities: [
+        {
+          vulnerability: {
+            id: "CVE-2020-14393",
+            severity: "Low",
+            description: "Sensitive vulnerability description",
+          },
+        },
+      ],
+      total: 1,
+    });
+
+    const handler = tools.get("search_vulnerabilities")!;
+    const result = await handler({
+      query: "perl",
+      limit: 10,
+      offset: 0,
+      include_description: true,
+    });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const vulnerabilities = data.vulnerabilities as Array<Record<string, unknown>>;
+
+    expect(mockIndexerClient.searchVulnerabilities).toHaveBeenCalledWith(
+      10,
+      0,
+      expect.objectContaining({ search: "perl" })
+    );
+    expect(vulnerabilities[0].description).toBe("Sensitive vulnerability description");
+    expect((data.output as Record<string, unknown>).description_included).toBe(true);
   });
 });
 
