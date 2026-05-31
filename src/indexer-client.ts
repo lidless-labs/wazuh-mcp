@@ -43,20 +43,16 @@ export class WazuhIndexerClient {
     return { signal: controller.signal, clear: () => clearTimeout(timeoutId) };
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  get tlsVerificationEnabled(): boolean {
+    return this.verifySsl;
+  }
+
+  private async fetchJson<T>(path: string, init: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const { signal, clear } = this.createAbortSignal();
     let response: Response;
     try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: this.authHeader,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal,
-      });
+      response = await fetch(url, { ...init, signal });
     } catch (error) {
       clear();
       if (error instanceof Error && error.name === "AbortError") {
@@ -80,6 +76,26 @@ export class WazuhIndexerClient {
     }
 
     return (await response.json()) as T;
+  }
+
+  private async post<T>(path: string, body: unknown): Promise<T> {
+    return this.fetchJson<T>(path, {
+      method: "POST",
+      headers: {
+        Authorization: this.authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getInfo(): Promise<Record<string, unknown>> {
+    return this.fetchJson<Record<string, unknown>>("/", {
+      method: "GET",
+      headers: {
+        Authorization: this.authHeader,
+      },
+    });
   }
 
   private mapHitToAlert(hit: OpenSearchHit): WazuhAlert {
@@ -127,12 +143,17 @@ export class WazuhIndexerClient {
     };
   }
 
-  async searchAlerts(query: Record<string, unknown>, size: number, from: number): Promise<{ alerts: WazuhAlert[]; total: number }> {
+  async searchAlerts(
+    query: Record<string, unknown>,
+    size: number,
+    from: number,
+    sortOrder: "asc" | "desc" = "desc"
+  ): Promise<{ alerts: WazuhAlert[]; total: number }> {
     const body = {
       query,
       size,
       from,
-      sort: [{ timestamp: { order: "desc" } }],
+      sort: [{ timestamp: { order: sortOrder } }],
     };
 
     const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
@@ -150,6 +171,7 @@ export class WazuhIndexerClient {
       agent_id?: string;
       rule_id?: string;
       search?: string;
+      sortOrder?: "asc" | "desc";
     }
   ): Promise<{ alerts: WazuhAlert[]; total: number }> {
     const must: unknown[] = [];
@@ -173,7 +195,7 @@ export class WazuhIndexerClient {
     }
 
     const query = must.length > 0 ? { bool: { must } } : { match_all: {} };
-    return this.searchAlerts(query, limit, offset);
+    return this.searchAlerts(query, limit, offset, filters?.sortOrder);
   }
 
   async getAlert(id: string): Promise<WazuhAlert | null> {

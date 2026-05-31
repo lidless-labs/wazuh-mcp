@@ -14,6 +14,14 @@ export interface IndexerConfig {
   verifySsl: boolean;
 }
 
+function parseTimeoutMs(value: string | undefined): number {
+  const timeoutSeconds = Number(value ?? "30");
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
+    throw new Error("WAZUH_TIMEOUT must be a positive integer number of seconds.");
+  }
+  return timeoutSeconds * 1000;
+}
+
 export function getConfig(): WazuhConfig {
   const url = process.env.WAZUH_URL || process.env.WAZUH_BASE_URL;
   if (!url) {
@@ -38,7 +46,7 @@ export function getConfig(): WazuhConfig {
 
   const verifySslStr = process.env.WAZUH_VERIFY_SSL ?? "false";
   const verifySsl = verifySslStr.toLowerCase() === "true";
-  const timeout = parseInt(process.env.WAZUH_TIMEOUT ?? "30", 10) * 1000;
+  const timeout = parseTimeoutMs(process.env.WAZUH_TIMEOUT);
 
   let indexer: IndexerConfig | undefined;
   const indexerUrl = process.env.WAZUH_INDEXER_URL;

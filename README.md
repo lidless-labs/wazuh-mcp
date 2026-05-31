@@ -24,7 +24,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for th
 
 ## Features
 
-- **25 MCP Tools** - Agents, alerts, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, and manager
+- **26 MCP Tools** - Agents, alerts, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, manager, and diagnostics
 - **3 MCP Resources** - Pre-built views for agents, recent alerts, and rule summaries
 - **3 MCP Prompts** - Alert investigation, agent health checks, and security overviews
 - **JWT Authentication** - Automatic token management with refresh on expiry
@@ -59,7 +59,8 @@ Set the following environment variables:
 | `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://10.0.0.2:55000`) |
 | `WAZUH_USERNAME` | Yes | - | API username |
 | `WAZUH_PASSWORD` | Yes | - | API password |
-| `WAZUH_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates |
+| `WAZUH_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
+| `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
 
@@ -73,9 +74,11 @@ Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API. To 
 | `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://10.0.0.2:9200`) |
 | `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
 | `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
-| `WAZUH_INDEXER_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates |
+| `WAZUH_INDEXER_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
 
 If `WAZUH_INDEXER_URL` is not set, alert tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
+
+When either SSL verification setting is `false`, the server prints a startup warning to stderr because Node.js applies disabled TLS verification process-wide.
 
 ## Usage
 
@@ -316,6 +319,7 @@ npm test       # Run tests
 |------|-------------|
 | `list_decoders` | List log decoders with optional name filtering |
 | `get_wazuh_version` | Get Wazuh manager version and API info |
+| `diagnose_wazuh_connection` | Check sanitized configuration, manager connectivity, and indexer readiness |
 
 ## MCP Resources
 
