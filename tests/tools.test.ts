@@ -605,6 +605,7 @@ describe("Diagnostic Tools", () => {
       username: "index-admin",
       password: "indexer-secret",
       verifySsl: false,
+      timeout: 30000,
     },
   };
 

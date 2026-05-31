@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import type { WazuhConfig } from "../config.js";
 import type { WazuhIndexerClient } from "../indexer-client.js";
+import { safeCaughtErrorMessage } from "../safe-error.js";
+import { formatToolResponse } from "./output.js";
 
 type DiagnosticStatus = "ok" | "warning" | "error";
 
@@ -82,14 +84,14 @@ export function registerDiagnosticTools(
       if (!config.verifySsl) {
         checks.push({
           status: "warning",
-          message: "WAZUH_VERIFY_SSL is false. TLS certificate verification is disabled process-wide.",
+          message: "WAZUH_VERIFY_SSL is false. TLS certificate verification is disabled for Wazuh manager requests.",
         });
       }
       if (config.indexer && !config.indexer.verifySsl) {
         checks.push({
           status: "warning",
           message:
-            "WAZUH_INDEXER_VERIFY_SSL is false. TLS certificate verification is disabled process-wide.",
+            "WAZUH_INDEXER_VERIFY_SSL is false. TLS certificate verification is disabled for Wazuh Indexer requests.",
         });
       }
       if (!config.indexer) {
@@ -120,9 +122,7 @@ export function registerDiagnosticTools(
         } catch (error) {
           checks.push({
             status: "error",
-            message: `Wazuh manager authentication failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            message: `Wazuh manager authentication failed: ${safeCaughtErrorMessage(error, "unknown error")}`,
           });
         }
 
@@ -141,9 +141,7 @@ export function registerDiagnosticTools(
           } catch (error) {
             checks.push({
               status: "error",
-              message: `Wazuh manager version check failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
+              message: `Wazuh manager version check failed: ${safeCaughtErrorMessage(error, "unknown error")}`,
             });
           }
         }
@@ -165,9 +163,7 @@ export function registerDiagnosticTools(
           } catch (error) {
             checks.push({
               status: "error",
-              message: `Wazuh Indexer check failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
+              message: `Wazuh Indexer check failed: ${safeCaughtErrorMessage(error, "unknown error")}`,
             });
           }
 
@@ -189,9 +185,7 @@ export function registerDiagnosticTools(
             } catch (error) {
               checks.push({
                 status: "error",
-                message: `Wazuh Indexer ${label} readiness check failed: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
+                message: `Wazuh Indexer ${label} readiness check failed: ${safeCaughtErrorMessage(error, "unknown error")}`,
                 details: {
                   index_pattern: indexPattern,
                 },
@@ -213,6 +207,7 @@ export function registerDiagnosticTools(
                 configured: true,
                 url: sanitizeUrl(config.indexer.url),
                 verify_ssl: config.indexer.verifySsl,
+                timeout_ms: config.indexer.timeout,
               }
             : {
                 configured: false,
@@ -222,7 +217,7 @@ export function registerDiagnosticTools(
       };
 
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        content: [{ type: "text" as const, text: formatToolResponse(result) }],
         isError: result.status === "error",
       };
     }

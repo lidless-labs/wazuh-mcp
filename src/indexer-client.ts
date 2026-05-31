@@ -1,4 +1,6 @@
 import type { IndexerConfig } from "./config.js";
+import { HttpTimeoutError, httpRequest, isTransientNetworkError, type HttpResponse } from "./http.js";
+import { extractSafeErrorDetail, safeCaughtErrorMessage, sanitizeErrorMessage } from "./safe-error.js";
 import type { WazuhAlert, WazuhVulnerability } from "./types.js";
 
 export class WazuhIndexerError extends Error {
@@ -43,53 +45,95 @@ interface VulnerabilityFilters {
 }
 
 export class WazuhIndexerClient {
+  private static readonly retryStatuses = new Set([429, 502, 503, 504]);
+
   private readonly baseUrl: string;
   private readonly authHeader: string;
   private readonly verifySsl: boolean;
-  private readonly timeout = 30_000;
+  private readonly timeout: number;
+  private readonly errorSecrets: string[];
 
   constructor(config: IndexerConfig) {
     this.baseUrl = config.url;
     this.authHeader =
       "Basic " + Buffer.from(`${config.username}:${config.password}`).toString("base64");
     this.verifySsl = config.verifySsl;
-  }
-
-  private createAbortSignal(): { signal: AbortSignal; clear: () => void } {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    return { signal: controller.signal, clear: () => clearTimeout(timeoutId) };
+    this.timeout = config.timeout ?? 30_000;
+    this.errorSecrets = [config.username, config.password, this.authHeader];
   }
 
   get tlsVerificationEnabled(): boolean {
     return this.verifySsl;
   }
 
-  private async fetchJson<T>(path: string, init: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
-    const { signal, clear } = this.createAbortSignal();
-    let response: Response;
-    try {
-      response = await fetch(url, { ...init, signal });
-    } catch (error) {
-      clear();
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new WazuhIndexerError(`Wazuh Indexer request timeout after ${this.timeout}ms`);
-      }
-      throw error;
+  private async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async send(
+    url: string,
+    options: {
+      method: string;
+      headers?: Record<string, string>;
+      body?: string;
+      retryable?: boolean;
     }
-    clear();
+  ): Promise<HttpResponse> {
+    const maxAttempts = options.retryable ? 3 : 1;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await httpRequest(url, {
+          method: options.method,
+          headers: options.headers,
+          body: options.body,
+          timeoutMs: this.timeout,
+          verifySsl: this.verifySsl,
+        });
+        if (
+          attempt < maxAttempts &&
+          WazuhIndexerClient.retryStatuses.has(response.status)
+        ) {
+          await this.sleep(100 * attempt);
+          continue;
+        }
+        return response;
+      } catch (error) {
+        if (error instanceof HttpTimeoutError) {
+          throw new WazuhIndexerError(`Wazuh Indexer request timeout after ${this.timeout}ms`);
+        }
+        lastError = error;
+        if (attempt >= maxAttempts || !isTransientNetworkError(error)) {
+          throw new WazuhIndexerError(
+            `Wazuh Indexer request failed: ${safeCaughtErrorMessage(error, "network error", this.errorSecrets)}`
+          );
+        }
+        await this.sleep(100 * attempt);
+      }
+    }
+
+    throw new WazuhIndexerError(
+      `Wazuh Indexer request failed: ${safeCaughtErrorMessage(lastError, "network error", this.errorSecrets)}`
+    );
+  }
+
+  private async fetchJson<T>(
+    path: string,
+    init: {
+      method: string;
+      headers?: Record<string, string>;
+      body?: string;
+      retryable?: boolean;
+    }
+  ): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
+    const response = await this.send(url, init);
 
     if (!response.ok) {
-      let errorMsg = `${response.status} ${response.statusText}`;
-      try {
-        const errorBody = (await response.json()) as Record<string, unknown>;
-        if (errorBody.error) {
-          errorMsg = `${errorMsg}: ${JSON.stringify(errorBody.error)}`;
-        }
-      } catch {
-        // ignore JSON parse errors
-      }
+      const errorBody = await response.json().catch(() => null);
+      const detail = extractSafeErrorDetail(errorBody, this.errorSecrets);
+      const errorMsg = `${response.status} ${sanitizeErrorMessage(response.statusText, this.errorSecrets)}${detail ? `: ${detail}` : ""}`;
       throw new WazuhIndexerError(`Indexer request failed: ${errorMsg}`, response.status);
     }
 
@@ -104,6 +148,7 @@ export class WazuhIndexerClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      retryable: true,
     });
   }
 
@@ -113,35 +158,25 @@ export class WazuhIndexerClient {
       headers: {
         Authorization: this.authHeader,
       },
+      retryable: true,
     });
   }
 
   async indexExists(indexPattern: string): Promise<boolean> {
     const path = `/${encodeURIComponent(indexPattern).replaceAll("%2A", "*")}`;
     const url = `${this.baseUrl}${path}`;
-    const { signal, clear } = this.createAbortSignal();
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: "HEAD",
-        headers: {
-          Authorization: this.authHeader,
-        },
-        signal,
-      });
-    } catch (error) {
-      clear();
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new WazuhIndexerError(`Wazuh Indexer request timeout after ${this.timeout}ms`);
-      }
-      throw error;
-    }
-    clear();
+    const response = await this.send(url, {
+      method: "HEAD",
+      headers: {
+        Authorization: this.authHeader,
+      },
+      retryable: true,
+    });
 
     if (response.status === 404) return false;
     if (!response.ok) {
       throw new WazuhIndexerError(
-        `Indexer request failed: ${response.status} ${response.statusText}`,
+        `Indexer request failed: ${response.status} ${sanitizeErrorMessage(response.statusText, this.errorSecrets)}`,
         response.status
       );
     }

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhIndexerClient } from "../indexer-client.js";
-import { includeDescriptionSchema, paginationMetadata } from "./output.js";
+import { formatToolResponse, includeDescriptionSchema, paginationMetadata } from "./output.js";
 import {
   agentIdSchema,
   cveIdSchema,
@@ -80,8 +80,7 @@ export function registerVulnerabilityTools(
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(
-                {
+              text: formatToolResponse({
                   vulnerabilities: vulnerabilities.map((item) =>
                     formatVulnerability(item, include_description)
                   ),
@@ -92,10 +91,7 @@ export function registerVulnerabilityTools(
                   output: {
                     description_included: include_description,
                   },
-                },
-                null,
-                2
-              ),
+                }),
             },
           ],
         };
@@ -145,8 +141,7 @@ export function registerVulnerabilityTools(
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(
-                {
+              text: formatToolResponse({
                   vulnerabilities: vulnerabilities.map((item) =>
                     formatVulnerability(item, include_description)
                   ),
@@ -158,10 +153,7 @@ export function registerVulnerabilityTools(
                   output: {
                     description_included: include_description,
                   },
-                },
-                null,
-                2
-              ),
+                }),
             },
           ],
         };

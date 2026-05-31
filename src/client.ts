@@ -1,4 +1,6 @@
 import type { WazuhConfig } from "./config.js";
+import { HttpTimeoutError, httpRequest, isTransientNetworkError, type HttpResponse } from "./http.js";
+import { extractSafeErrorDetail, safeCaughtErrorMessage, sanitizeErrorMessage } from "./safe-error.js";
 import type {
   WazuhApiResponse,
   WazuhPaginatedData,
@@ -41,6 +43,8 @@ export class WazuhAuthenticationError extends WazuhClientError {
 }
 
 export class WazuhClient {
+  private static readonly retryStatuses = new Set([429, 502, 503, 504]);
+
   private token: string | null = null;
   private readonly baseUrl: string;
   private readonly username: string;
@@ -56,23 +60,60 @@ export class WazuhClient {
     this.timeout = config.timeout;
   }
 
-  private get fetchOptions(): RequestInit {
-    const opts: RequestInit = {};
-    if (!this.verifySsl) {
-      // Node 20+ supports this via the dispatcher option on undici,
-      // but for standard fetch we rely on NODE_TLS_REJECT_UNAUTHORIZED=0
-      // which is set at startup in index.ts
-    }
-    return opts;
+  private get errorSecrets(): string[] {
+    return [this.username, this.password, this.token ?? ""];
   }
 
-  private createAbortSignal(): { signal: AbortSignal; clear: () => void } {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    return {
-      signal: controller.signal,
-      clear: () => clearTimeout(timeoutId),
-    };
+  private async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async send(
+    url: string,
+    options: {
+      method: string;
+      headers?: Record<string, string>;
+      body?: string;
+      retryable?: boolean;
+    }
+  ): Promise<HttpResponse> {
+    const maxAttempts = options.retryable ? 3 : 1;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await httpRequest(url, {
+          method: options.method,
+          headers: options.headers,
+          body: options.body,
+          timeoutMs: this.timeout,
+          verifySsl: this.verifySsl,
+        });
+        if (
+          attempt < maxAttempts &&
+          WazuhClient.retryStatuses.has(response.status)
+        ) {
+          await this.sleep(100 * attempt);
+          continue;
+        }
+        return response;
+      } catch (error) {
+        if (error instanceof HttpTimeoutError) {
+          throw new WazuhClientError(`Wazuh API timeout after ${this.timeout}ms`);
+        }
+        lastError = error;
+        if (attempt >= maxAttempts || !isTransientNetworkError(error)) {
+          throw new WazuhClientError(
+            `Wazuh API request failed: ${safeCaughtErrorMessage(error, "network error", this.errorSecrets)}`
+          );
+        }
+        await this.sleep(100 * attempt);
+      }
+    }
+
+    throw new WazuhClientError(
+      `Wazuh API request failed: ${safeCaughtErrorMessage(lastError, "network error", this.errorSecrets)}`
+    );
   }
 
   private pathSegment(value: string): string {
@@ -84,33 +125,31 @@ export class WazuhClient {
       `${this.username}:${this.password}`
     ).toString("base64");
 
-    const { signal, clear } = this.createAbortSignal();
-    let response: Response;
+    let response: HttpResponse;
     try {
-      response = await fetch(
-        `${this.baseUrl}/security/user/authenticate`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Basic ${credentials}`,
-            "Content-Type": "application/json",
-          },
-          signal,
-          ...this.fetchOptions,
-        }
-      );
+      response = await this.send(`${this.baseUrl}/security/user/authenticate`, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          "Content-Type": "application/json",
+        },
+      });
     } catch (error) {
+      if (error instanceof WazuhClientError) {
+        if (error.message.includes("timeout")) {
+          throw new WazuhClientError(`Wazuh API authentication timeout after ${this.timeout}ms`);
+        }
+        throw error;
+      }
       if (error instanceof Error && error.name === "AbortError") {
         throw new WazuhClientError(`Wazuh API authentication timeout after ${this.timeout}ms`);
       }
       throw error;
-    } finally {
-      clear();
     }
 
     if (!response.ok) {
       throw new WazuhAuthenticationError(
-        `Authentication failed: ${response.status} ${response.statusText}`,
+        `Authentication failed: ${response.status} ${sanitizeErrorMessage(response.statusText, this.errorSecrets)}`,
         response.status
       );
     }
@@ -154,24 +193,12 @@ export class WazuhClient {
       "Content-Type": "application/json",
     };
 
-    const { signal, clear } = this.createAbortSignal();
-    let response: Response;
-    try {
-      response = await fetch(url.toString(), {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-        signal,
-        ...this.fetchOptions,
-      });
-    } catch (error) {
-      clear();
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new WazuhClientError(`Wazuh API timeout after ${this.timeout}ms`);
-      }
-      throw error;
-    }
-    clear();
+    const response = await this.send(url.toString(), {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      retryable: method === "GET",
+    });
 
     // Auto-refresh token on 401
     if (response.status === 401) {
@@ -179,28 +206,17 @@ export class WazuhClient {
       await this.authenticate();
       headers.Authorization = `Bearer ${this.token}`;
 
-      const { signal: retrySignal, clear: retryClear } = this.createAbortSignal();
-      let retryResponse: Response;
-      try {
-        retryResponse = await fetch(url.toString(), {
-          method,
-          headers,
-          body: body ? JSON.stringify(body) : undefined,
-          signal: retrySignal,
-          ...this.fetchOptions,
-        });
-      } catch (error) {
-        retryClear();
-        if (error instanceof Error && error.name === "AbortError") {
-          throw new WazuhClientError(`Wazuh API timeout after ${this.timeout}ms`);
-        }
-        throw error;
-      }
-      retryClear();
+      const retryResponse = await this.send(url.toString(), {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        retryable: method === "GET",
+      });
 
       if (!retryResponse.ok) {
+        const detail = extractSafeErrorDetail(await retryResponse.json().catch(() => null), this.errorSecrets);
         throw new WazuhClientError(
-          `Request failed after re-auth: ${retryResponse.status} ${retryResponse.statusText}`,
+          `Request failed after re-auth: ${retryResponse.status} ${sanitizeErrorMessage(retryResponse.statusText, this.errorSecrets)}${detail ? `: ${detail}` : ""}`,
           retryResponse.status
         );
       }
@@ -209,15 +225,9 @@ export class WazuhClient {
     }
 
     if (!response.ok) {
-      let errorMsg = `${response.status} ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody.message) {
-          errorMsg = `${errorMsg}: ${errorBody.message}`;
-        }
-      } catch {
-        // ignore JSON parse errors on error responses
-      }
+      const errorBody = await response.json().catch(() => null);
+      const detail = extractSafeErrorDetail(errorBody, this.errorSecrets);
+      const errorMsg = `${response.status} ${sanitizeErrorMessage(response.statusText, this.errorSecrets)}${detail ? `: ${detail}` : ""}`;
       throw new WazuhClientError(`Request failed: ${errorMsg}`, response.status);
     }
 

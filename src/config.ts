@@ -12,12 +12,13 @@ export interface IndexerConfig {
   username: string;
   password: string;
   verifySsl: boolean;
+  timeout: number;
 }
 
-function parseTimeoutMs(value: string | undefined): number {
+function parseTimeoutMs(value: string | undefined, envName: string): number {
   const timeoutSeconds = Number(value ?? "30");
   if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
-    throw new Error("WAZUH_TIMEOUT must be a positive integer number of seconds.");
+    throw new Error(`${envName} must be a positive integer number of seconds.`);
   }
   return timeoutSeconds * 1000;
 }
@@ -46,7 +47,7 @@ export function getConfig(): WazuhConfig {
 
   const verifySslStr = process.env.WAZUH_VERIFY_SSL ?? "false";
   const verifySsl = verifySslStr.toLowerCase() === "true";
-  const timeout = parseTimeoutMs(process.env.WAZUH_TIMEOUT);
+  const timeout = parseTimeoutMs(process.env.WAZUH_TIMEOUT, "WAZUH_TIMEOUT");
 
   let indexer: IndexerConfig | undefined;
   const indexerUrl = process.env.WAZUH_INDEXER_URL;
@@ -56,6 +57,7 @@ export function getConfig(): WazuhConfig {
       username: process.env.WAZUH_INDEXER_USERNAME ?? "admin",
       password: process.env.WAZUH_INDEXER_PASSWORD ?? "",
       verifySsl: (process.env.WAZUH_INDEXER_VERIFY_SSL ?? "false").toLowerCase() === "true",
+      timeout: parseTimeoutMs(process.env.WAZUH_INDEXER_TIMEOUT, "WAZUH_INDEXER_TIMEOUT"),
     };
   }
 
