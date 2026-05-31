@@ -220,6 +220,90 @@ describe("WazuhClient", () => {
     });
   });
 
+  describe("path segment encoding", () => {
+    beforeEach(() => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse({
+          data: { token: mockToken },
+          error: 0,
+          message: "ok",
+        })
+      );
+    });
+
+    it("should encode user-controlled URL path segments", async () => {
+      const agentId = "001/../../manager";
+      const policyId = "cis/linux benchmark";
+      const groupId = "linux/servers";
+      const emptyPage = {
+        data: {
+          affected_items: [],
+          total_affected_items: 0,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      };
+      const calls: Array<[() => Promise<unknown>, string]> = [
+        [
+          () => client.getAgentStats(agentId),
+          "https://wazuh.example.com:55000/agents/001%2F..%2F..%2Fmanager/stats/agent",
+        ],
+        [
+          () => client.getScaPolicies(agentId),
+          "https://wazuh.example.com:55000/sca/001%2F..%2F..%2Fmanager",
+        ],
+        [
+          () => client.getScaChecks(agentId, policyId),
+          "https://wazuh.example.com:55000/sca/001%2F..%2F..%2Fmanager/checks/cis%2Flinux%20benchmark",
+        ],
+        [
+          () => client.getAgentOs(agentId),
+          "https://wazuh.example.com:55000/syscollector/001%2F..%2F..%2Fmanager/os",
+        ],
+        [
+          () => client.getAgentPackages(agentId),
+          "https://wazuh.example.com:55000/syscollector/001%2F..%2F..%2Fmanager/packages",
+        ],
+        [
+          () => client.getAgentProcesses(agentId),
+          "https://wazuh.example.com:55000/syscollector/001%2F..%2F..%2Fmanager/processes",
+        ],
+        [
+          () => client.getAgentPorts(agentId),
+          "https://wazuh.example.com:55000/syscollector/001%2F..%2F..%2Fmanager/ports",
+        ],
+        [
+          () => client.getAgentNetwork(agentId),
+          "https://wazuh.example.com:55000/syscollector/001%2F..%2F..%2Fmanager/netiface",
+        ],
+        [
+          () => client.getAgentHotfixes(agentId),
+          "https://wazuh.example.com:55000/syscollector/001%2F..%2F..%2Fmanager/hotfixes",
+        ],
+        [
+          () => client.getRootcheck(agentId),
+          "https://wazuh.example.com:55000/rootcheck/001%2F..%2F..%2Fmanager",
+        ],
+        [
+          () => client.getFimFiles(agentId),
+          "https://wazuh.example.com:55000/syscheck/001%2F..%2F..%2Fmanager",
+        ],
+        [
+          () => client.getGroupAgents(groupId),
+          "https://wazuh.example.com:55000/groups/linux%2Fservers/agents",
+        ],
+      ];
+
+      for (const [call, expectedUrl] of calls) {
+        fetchSpy.mockResolvedValueOnce(mockFetchResponse(emptyPage));
+        await call();
+        expect(fetchSpy.mock.lastCall?.[0]).toBe(expectedUrl);
+      }
+    });
+  });
+
   describe("getAgents", () => {
     beforeEach(() => {
       fetchSpy.mockResolvedValueOnce(

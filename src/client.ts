@@ -75,6 +75,10 @@ export class WazuhClient {
     };
   }
 
+  private pathSegment(value: string): string {
+    return encodeURIComponent(value);
+  }
+
   async authenticate(): Promise<string> {
     const credentials = Buffer.from(
       `${this.username}:${this.password}`
@@ -244,7 +248,7 @@ export class WazuhClient {
   async getAgentStats(
     agentId: string
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhAgentStats>>> {
-    return this.get(`/agents/${agentId}/stats/agent`);
+    return this.get(`/agents/${this.pathSegment(agentId)}/stats/agent`);
   }
 
   // --- Alert methods ---
@@ -288,7 +292,7 @@ export class WazuhClient {
   async getScaPolicies(
     agentId: string
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhScaPolicy>>> {
-    return this.get(`/sca/${agentId}`);
+    return this.get(`/sca/${this.pathSegment(agentId)}`);
   }
 
   async getScaChecks(
@@ -296,7 +300,10 @@ export class WazuhClient {
     policyId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhScaCheck>>> {
-    return this.get(`/sca/${agentId}/checks/${policyId}`, params);
+    return this.get(
+      `/sca/${this.pathSegment(agentId)}/checks/${this.pathSegment(policyId)}`,
+      params
+    );
   }
 
   // --- Syscollector methods ---
@@ -304,41 +311,41 @@ export class WazuhClient {
   async getAgentOs(
     agentId: string
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhOsInfo>>> {
-    return this.get(`/syscollector/${agentId}/os`);
+    return this.get(`/syscollector/${this.pathSegment(agentId)}/os`);
   }
 
   async getAgentPackages(
     agentId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhPackage>>> {
-    return this.get(`/syscollector/${agentId}/packages`, params);
+    return this.get(`/syscollector/${this.pathSegment(agentId)}/packages`, params);
   }
 
   async getAgentProcesses(
     agentId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhProcess>>> {
-    return this.get(`/syscollector/${agentId}/processes`, params);
+    return this.get(`/syscollector/${this.pathSegment(agentId)}/processes`, params);
   }
 
   async getAgentPorts(
     agentId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhPort>>> {
-    return this.get(`/syscollector/${agentId}/ports`, params);
+    return this.get(`/syscollector/${this.pathSegment(agentId)}/ports`, params);
   }
 
   async getAgentNetwork(
     agentId: string
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhNetIface>>> {
-    return this.get(`/syscollector/${agentId}/netiface`);
+    return this.get(`/syscollector/${this.pathSegment(agentId)}/netiface`);
   }
 
   async getAgentHotfixes(
     agentId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhHotfix>>> {
-    return this.get(`/syscollector/${agentId}/hotfixes`, params);
+    return this.get(`/syscollector/${this.pathSegment(agentId)}/hotfixes`, params);
   }
 
   // --- Rootcheck methods ---
@@ -347,7 +354,7 @@ export class WazuhClient {
     agentId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhRootcheckResult>>> {
-    return this.get(`/rootcheck/${agentId}`, params);
+    return this.get(`/rootcheck/${this.pathSegment(agentId)}`, params);
   }
 
   // --- Syscheck / FIM methods ---
@@ -356,7 +363,7 @@ export class WazuhClient {
     agentId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhFimFile>>> {
-    return this.get(`/syscheck/${agentId}`, params);
+    return this.get(`/syscheck/${this.pathSegment(agentId)}`, params);
   }
 
   // --- Manager methods ---
@@ -385,6 +392,6 @@ export class WazuhClient {
     groupId: string,
     params: Record<string, string | number> = {}
   ): Promise<WazuhApiResponse<WazuhPaginatedData<WazuhAgent>>> {
-    return this.get(`/groups/${groupId}/agents`, params);
+    return this.get(`/groups/${this.pathSegment(groupId)}/agents`, params);
   }
 }
