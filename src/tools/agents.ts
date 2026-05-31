@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
-import { includeIpSchema, withOptionalField } from "./output.js";
+import { includeIpSchema, paginationMetadata, withOptionalField } from "./output.js";
 import { agentIdSchema, limitSchema, offsetSchema, sortSchema } from "./schemas.js";
 
 export function registerAgentTools(
@@ -60,6 +60,7 @@ export function registerAgentTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
           output: {
             ip_included: include_ip,
           },

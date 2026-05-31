@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { paginationMetadata } from "./output.js";
 import { agentIdSchema, limitSchema, offsetSchema, policyIdSchema } from "./schemas.js";
 
 export function registerScaTools(
@@ -94,6 +95,7 @@ export function registerScaTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
         };
 
         return {

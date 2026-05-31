@@ -93,10 +93,13 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 | `get_agent_processes` | Process command lines and arguments | `include_command: true` |
 | `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
 | `get_manager_logs` | Full log descriptions | `include_description: true` |
+| `get_manager_config` | Secret-like config values | `include_sensitive_config: true` |
 
 ### Input Validation
 
 Tool inputs are validated before requests are sent to Wazuh. Pagination is bounded, search text is length-limited, sort fields are enumerated per tool, and path-oriented identifiers such as agent IDs, alert IDs, group IDs, and SCA policy IDs reject unsupported characters.
+
+Paginated tool responses include a `pagination` object with `total`, `limit`, `offset`, and `has_more` fields while preserving the existing top-level `total`, `limit`, and `offset` fields.
 
 ## Usage
 
@@ -329,7 +332,7 @@ npm test       # Run tests
 | Tool | Description |
 |------|-------------|
 | `get_manager_logs` | Get Wazuh manager logs filtered by level and module |
-| `get_manager_config` | Get active manager configuration by section |
+| `get_manager_config` | Get active manager configuration by section with secret-like values redacted by default |
 
 ### Group Tools
 
@@ -344,7 +347,7 @@ npm test       # Run tests
 |------|-------------|
 | `list_decoders` | List log decoders with optional name filtering |
 | `get_wazuh_version` | Get Wazuh manager version and API info |
-| `diagnose_wazuh_connection` | Check sanitized configuration, manager connectivity, and indexer readiness |
+| `diagnose_wazuh_connection` | Check sanitized configuration, URL/TLS settings, manager auth/version, and indexer readiness |
 
 ## MCP Resources
 
@@ -394,8 +397,11 @@ and their compliance framework mappings.
 ## Testing
 
 ```bash
-npm test              # Run all tests
-npm run test:watch    # Watch mode
+npm test               # Run all tests
+npm run typecheck      # Type-check TypeScript
+npm audit --omit=dev   # Audit production dependencies
+npm run pack:check     # Verify package contents
+npm run test:watch     # Watch mode
 ```
 
 Tests use mocked Wazuh API responses - no live Wazuh instance needed.

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhClient } from "../client.js";
-import { includeCommandSchema } from "./output.js";
+import { includeCommandSchema, paginationMetadata } from "./output.js";
 import { agentIdSchema, limitSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerSyscollectorTools(
@@ -74,6 +74,7 @@ export function registerSyscollectorTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
         };
 
         return {
@@ -127,6 +128,7 @@ export function registerSyscollectorTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
           output: {
             command_included: include_command,
           },
@@ -179,6 +181,7 @@ export function registerSyscollectorTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
         };
 
         return {
@@ -265,6 +268,7 @@ export function registerSyscollectorTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
         };
 
         return {

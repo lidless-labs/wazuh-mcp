@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhIndexerClient } from "../indexer-client.js";
-import { includeDescriptionSchema } from "./output.js";
+import { includeDescriptionSchema, paginationMetadata } from "./output.js";
 import {
   agentIdSchema,
   cveIdSchema,
@@ -88,6 +88,7 @@ export function registerVulnerabilityTools(
                   total,
                   limit,
                   offset,
+                  pagination: paginationMetadata(total, limit, offset),
                   output: {
                     description_included: include_description,
                   },
@@ -153,6 +154,7 @@ export function registerVulnerabilityTools(
                   query,
                   limit,
                   offset,
+                  pagination: paginationMetadata(total, limit, offset),
                   output: {
                     description_included: include_description,
                   },

@@ -116,6 +116,38 @@ export class WazuhIndexerClient {
     });
   }
 
+  async indexExists(indexPattern: string): Promise<boolean> {
+    const path = `/${encodeURIComponent(indexPattern).replaceAll("%2A", "*")}`;
+    const url = `${this.baseUrl}${path}`;
+    const { signal, clear } = this.createAbortSignal();
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "HEAD",
+        headers: {
+          Authorization: this.authHeader,
+        },
+        signal,
+      });
+    } catch (error) {
+      clear();
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new WazuhIndexerError(`Wazuh Indexer request timeout after ${this.timeout}ms`);
+      }
+      throw error;
+    }
+    clear();
+
+    if (response.status === 404) return false;
+    if (!response.ok) {
+      throw new WazuhIndexerError(
+        `Indexer request failed: ${response.status} ${response.statusText}`,
+        response.status
+      );
+    }
+    return true;
+  }
+
   private mapHitToAlert(hit: OpenSearchHit): WazuhAlert {
     const s = hit._source as Record<string, unknown>;
     const rule = s.rule as Record<string, unknown> | undefined;

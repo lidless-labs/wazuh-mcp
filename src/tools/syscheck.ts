@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
-import { includeHashesSchema } from "./output.js";
+import { includeHashesSchema, paginationMetadata } from "./output.js";
 import { agentIdSchema, limitSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerSyscheckTools(
@@ -48,6 +48,7 @@ export function registerSyscheckTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
           output: {
             hashes_included: include_hashes,
           },

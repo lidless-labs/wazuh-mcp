@@ -20,8 +20,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      - run: npm audit --omit=dev
+      - run: npm run pack:check
 
   publish:
     needs: test
@@ -36,7 +39,11 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run build
+      - run: npm test
+      - run: npm audit --omit=dev
+      - run: npm run pack:check
       - name: Publish if version is new
         run: |
           PKG=$(node -p "require('./package.json').name")

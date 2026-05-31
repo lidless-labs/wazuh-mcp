@@ -161,4 +161,27 @@ describe("WazuhIndexerClient", () => {
       })
     );
   });
+
+  it("should check index readiness for diagnostics", async () => {
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(null));
+
+    const exists = await client.indexExists("wazuh-states-vulnerabilities*");
+
+    expect(exists).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://indexer.example.com:9200/wazuh-states-vulnerabilities*",
+      expect.objectContaining({
+        method: "HEAD",
+        headers: expect.objectContaining({
+          Authorization: expect.stringContaining("Basic "),
+        }),
+      })
+    );
+  });
+
+  it("should return false when an index is missing", async () => {
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(null, 404));
+
+    await expect(client.indexExists("missing-index*")).resolves.toBe(false);
+  });
 });
