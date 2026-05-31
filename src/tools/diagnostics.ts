@@ -29,6 +29,33 @@ function combineStatus(checks: CheckResult[]): DiagnosticStatus {
   return "ok";
 }
 
+function urlCheck(name: string, rawUrl: string): CheckResult {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:") {
+      return {
+        status: "warning",
+        message: `${name} URL does not use HTTPS.`,
+        details: {
+          protocol: url.protocol.replace(":", ""),
+        },
+      };
+    }
+    return {
+      status: "ok",
+      message: `${name} URL uses HTTPS.`,
+      details: {
+        protocol: "https",
+      },
+    };
+  } catch {
+    return {
+      status: "error",
+      message: `${name} URL is invalid.`,
+    };
+  }
+}
+
 export function registerDiagnosticTools(
   server: McpServer,
   client: WazuhClient,
@@ -47,6 +74,11 @@ export function registerDiagnosticTools(
     async ({ check_connectivity = true }) => {
       const checks: CheckResult[] = [];
 
+      checks.push(urlCheck("Wazuh manager", config.url));
+      if (config.indexer) {
+        checks.push(urlCheck("Wazuh Indexer", config.indexer.url));
+      }
+
       if (!config.verifySsl) {
         checks.push({
           status: "warning",
@@ -63,29 +95,57 @@ export function registerDiagnosticTools(
       if (!config.indexer) {
         checks.push({
           status: "warning",
-          message: "WAZUH_INDEXER_URL is not configured, alert tools and alert resources are unavailable.",
+          message:
+            "WAZUH_INDEXER_URL is not configured, alert and vulnerability tools plus alert resources are unavailable.",
         });
       }
 
+      checks.push({
+        status: process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0" ? "warning" : "ok",
+        message:
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0"
+            ? "Node TLS verification is disabled for this process."
+            : "Node TLS verification is enabled for this process.",
+      });
+
       if (check_connectivity) {
+        let managerAuthenticated = false;
         try {
-          const response = await client.getVersion();
+          await client.authenticate();
+          managerAuthenticated = true;
           checks.push({
             status: "ok",
-            message: "Wazuh manager API is reachable.",
-            details: {
-              api_version: response.data.api_version,
-              hostname: response.data.hostname,
-              revision: response.data.revision,
-            },
+            message: "Wazuh manager authentication succeeded.",
           });
         } catch (error) {
           checks.push({
             status: "error",
-            message: `Wazuh manager API check failed: ${
+            message: `Wazuh manager authentication failed: ${
               error instanceof Error ? error.message : String(error)
             }`,
           });
+        }
+
+        if (managerAuthenticated) {
+          try {
+            const response = await client.getVersion();
+            checks.push({
+              status: "ok",
+              message: "Wazuh manager API is reachable.",
+              details: {
+                api_version: response.data.api_version,
+                hostname: response.data.hostname,
+                revision: response.data.revision,
+              },
+            });
+          } catch (error) {
+            checks.push({
+              status: "error",
+              message: `Wazuh manager version check failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            });
+          }
         }
 
         if (indexerClient) {
@@ -110,6 +170,34 @@ export function registerDiagnosticTools(
               }`,
             });
           }
+
+          for (const [label, indexPattern] of [
+            ["alert index", "wazuh-alerts-*"],
+            ["vulnerability index", "wazuh-states-vulnerabilities*"],
+          ] as const) {
+            try {
+              const exists = await indexerClient.indexExists(indexPattern);
+              checks.push({
+                status: exists ? "ok" : "warning",
+                message: exists
+                  ? `Wazuh Indexer ${label} is available.`
+                  : `Wazuh Indexer ${label} was not found.`,
+                details: {
+                  index_pattern: indexPattern,
+                },
+              });
+            } catch (error) {
+              checks.push({
+                status: "error",
+                message: `Wazuh Indexer ${label} readiness check failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+                details: {
+                  index_pattern: indexPattern,
+                },
+              });
+            }
+          }
         }
       }
 
@@ -119,6 +207,7 @@ export function registerDiagnosticTools(
           manager_url: sanitizeUrl(config.url),
           manager_verify_ssl: config.verifySsl,
           timeout_ms: config.timeout,
+          node_tls_reject_unauthorized: process.env.NODE_TLS_REJECT_UNAUTHORIZED ?? null,
           indexer: config.indexer
             ? {
                 configured: true,

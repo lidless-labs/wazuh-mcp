@@ -1,7 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
-import { includeDescriptionSchema } from "./output.js";
+import {
+  includeDescriptionSchema,
+  includeSensitiveConfigSchema,
+  paginationMetadata,
+} from "./output.js";
+import { redactSensitiveConfig } from "./redaction.js";
 import { limitSchema, managerSectionSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerManagerTools(
@@ -40,6 +45,7 @@ export function registerManagerTools(
           total: data.total_affected_items,
           limit,
           offset,
+          pagination: paginationMetadata(data.total_affected_items, limit, offset),
           output: {
             description_included: include_description,
           },
@@ -71,16 +77,35 @@ export function registerManagerTools(
       section: managerSectionSchema
         .optional()
         .describe("Configuration section to retrieve. Omit to get the full configuration."),
+      include_sensitive_config: includeSensitiveConfigSchema,
     },
-    async ({ section }) => {
+    async ({ section, include_sensitive_config = false }) => {
       try {
         const params: Record<string, string | number> = {};
         if (section) params.section = section;
 
         const response = await client.getManagerConfig(params);
+        const config = include_sensitive_config
+          ? response.data
+          : redactSensitiveConfig(response.data);
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(response.data, null, 2) }],
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  configuration: config,
+                  section,
+                  output: {
+                    sensitive_config_included: include_sensitive_config,
+                  },
+                },
+                null,
+                2
+              ),
+            },
+          ],
         };
       } catch (error) {
         return {

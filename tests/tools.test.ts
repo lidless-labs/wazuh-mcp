@@ -610,10 +610,12 @@ describe("Diagnostic Tools", () => {
 
   it("should return sanitized configuration without connectivity checks", async () => {
     const mockClient: Partial<WazuhClient> = {
+      authenticate: vi.fn(),
       getVersion: vi.fn(),
     };
     const mockIndexerClient: Partial<WazuhIndexerClient> = {
       getInfo: vi.fn(),
+      indexExists: vi.fn(),
     };
     const tools = captureDiagnosticTools(mockClient, mockConfig, mockIndexerClient);
 
@@ -633,6 +635,7 @@ describe("Diagnostic Tools", () => {
 
   it("should report manager and indexer connectivity success", async () => {
     const mockClient: Partial<WazuhClient> = {
+      authenticate: vi.fn().mockResolvedValue("token"),
       getVersion: vi.fn().mockResolvedValue({
         data: {
           title: "Wazuh API REST",
@@ -652,6 +655,7 @@ describe("Diagnostic Tools", () => {
         cluster_name: "wazuh-indexer",
         version: { number: "2.11.0" },
       }),
+      indexExists: vi.fn().mockResolvedValue(true),
     };
     const tools = captureDiagnosticTools(
       mockClient,
@@ -665,13 +669,17 @@ describe("Diagnostic Tools", () => {
 
     expect(result.isError).toBe(false);
     expect(data.status).toBe("ok");
+    expect(mockClient.authenticate).toHaveBeenCalledOnce();
     expect(mockClient.getVersion).toHaveBeenCalledOnce();
     expect(mockIndexerClient.getInfo).toHaveBeenCalledOnce();
+    expect(mockIndexerClient.indexExists).toHaveBeenCalledWith("wazuh-alerts-*");
+    expect(mockIndexerClient.indexExists).toHaveBeenCalledWith("wazuh-states-vulnerabilities*");
   });
 
   it("should mark diagnostics as an error when connectivity fails", async () => {
     const mockClient: Partial<WazuhClient> = {
-      getVersion: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+      authenticate: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+      getVersion: vi.fn(),
     };
     const tools = captureDiagnosticTools(
       mockClient,
@@ -685,6 +693,7 @@ describe("Diagnostic Tools", () => {
     expect(result.isError).toBe(true);
     expect(data.status).toBe("error");
     expect(result.content[0].text).toContain("ECONNREFUSED");
+    expect(mockClient.getVersion).not.toHaveBeenCalled();
   });
 });
 
@@ -1073,6 +1082,7 @@ describe("Manager Tools", () => {
   beforeEach(() => {
     mockClient = {
       getManagerLogs: vi.fn(),
+      getManagerConfig: vi.fn(),
     };
     tools = captureTools(registerManagerTools, mockClient);
   });
@@ -1102,6 +1112,7 @@ describe("Manager Tools", () => {
     const logs = data.logs as Array<Record<string, unknown>>;
 
     expect(logs[0].description).toBeUndefined();
+    expect((data.pagination as Record<string, unknown>).has_more).toBe(false);
     expect((data.output as Record<string, unknown>).description_included).toBe(false);
   });
 
@@ -1134,6 +1145,54 @@ describe("Manager Tools", () => {
     const logs = data.logs as Array<Record<string, unknown>>;
 
     expect(logs[0].description).toBe("sensitive host log line");
+  });
+
+  it("should redact sensitive manager config values by default", async () => {
+    vi.mocked(mockClient.getManagerConfig!).mockResolvedValue({
+      data: {
+        auth: {
+          token: "manager-token",
+          nested: {
+            password: "manager-password",
+          },
+        },
+        global: {
+          email_notification: "yes",
+        },
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_manager_config")!;
+    const result = await handler({ section: "auth" });
+    const text = result.content[0].text;
+    const data = parseToolResult(result) as Record<string, unknown>;
+
+    expect(text).not.toContain("manager-token");
+    expect(text).not.toContain("manager-password");
+    expect(text).toContain("[REDACTED]");
+    expect((data.output as Record<string, unknown>).sensitive_config_included).toBe(false);
+  });
+
+  it("should include sensitive manager config only when requested", async () => {
+    vi.mocked(mockClient.getManagerConfig!).mockResolvedValue({
+      data: {
+        auth: {
+          token: "manager-token",
+        },
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_manager_config")!;
+    const result = await handler({ section: "auth", include_sensitive_config: true });
+    const text = result.content[0].text;
+    const data = parseToolResult(result) as Record<string, unknown>;
+
+    expect(text).toContain("manager-token");
+    expect((data.output as Record<string, unknown>).sensitive_config_included).toBe(true);
   });
 });
 

@@ -30,6 +30,11 @@ export const includeDescriptionSchema = z
   .default(false)
   .describe("Include full log descriptions in the response");
 
+export const includeSensitiveConfigSchema = z
+  .boolean()
+  .default(false)
+  .describe("Include sensitive manager configuration values in the response");
+
 export function withOptionalField<K extends string, V>(
   target: Record<string, unknown>,
   key: K,
@@ -40,4 +45,13 @@ export function withOptionalField<K extends string, V>(
     return { ...target, [key]: value };
   }
   return target;
+}
+
+export function paginationMetadata(total: number, limit: number, offset: number): Record<string, number | boolean> {
+  return {
+    total,
+    limit,
+    offset,
+    has_more: offset + limit < total,
+  };
 }

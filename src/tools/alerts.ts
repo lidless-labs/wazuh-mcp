@@ -5,6 +5,7 @@ import type { WazuhIndexerClient } from "../indexer-client.js";
 import {
   includeFullLogSchema,
   includeRawDataSchema,
+  paginationMetadata,
   withOptionalField,
 } from "./output.js";
 import {
@@ -108,6 +109,7 @@ export function registerAlertTools(
           total,
           limit,
           offset,
+          pagination: paginationMetadata(total, limit, offset),
           sort,
           start_time,
           end_time,
@@ -284,6 +286,7 @@ export function registerAlertTools(
           query,
           limit,
           offset,
+          pagination: paginationMetadata(total, limit, offset),
           start_time,
           end_time,
           output: {
