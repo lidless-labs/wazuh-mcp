@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import { includeHashesSchema } from "./output.js";
+import { agentIdSchema, limitSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerSyscheckTools(
   server: McpServer,
@@ -11,26 +12,10 @@ export function registerSyscheckTools(
     "get_fim_files",
     "Get File Integrity Monitoring (FIM) results for a Wazuh agent — shows monitored files, registry keys, and detected changes",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(25)
-        .describe("Maximum number of results to return (1-500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
-      search: z
-        .string()
-        .optional()
-        .describe("Filter by file path or name"),
+      agent_id: agentIdSchema,
+      limit: limitSchema(25, 500),
+      offset: offsetSchema,
+      search: optionalSearchTextSchema.describe("Filter by file path or name"),
       type: z
         .enum(["file", "registry_key", "registry_value"])
         .optional()

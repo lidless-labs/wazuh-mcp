@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { agentIdSchema, limitSchema, offsetSchema } from "./schemas.js";
 
 export function registerRootcheckTools(
   server: McpServer,
@@ -10,22 +11,9 @@ export function registerRootcheckTools(
     "get_rootcheck",
     "Get rootkit detection scan results for a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(25)
-        .describe("Maximum number of results to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      agent_id: agentIdSchema,
+      limit: limitSchema(25),
+      offset: offsetSchema,
       status: z
         .enum(["outstanding", "solved"])
         .optional()

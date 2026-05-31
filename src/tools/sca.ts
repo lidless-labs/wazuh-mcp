@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { agentIdSchema, limitSchema, offsetSchema, policyIdSchema } from "./schemas.js";
 
 export function registerScaTools(
   server: McpServer,
@@ -10,9 +11,7 @@ export function registerScaTools(
     "get_sca_policies",
     "List Security Configuration Assessment (SCA) policies evaluated on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
+      agent_id: agentIdSchema,
     },
     async ({ agent_id }) => {
       try {
@@ -59,29 +58,14 @@ export function registerScaTools(
     "get_sca_checks",
     "Get individual check results for a specific SCA policy on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      policy_id: z
-        .string()
-        .describe("SCA policy identifier (e.g., 'cis_debian10')"),
+      agent_id: agentIdSchema,
+      policy_id: policyIdSchema,
       result: z
         .enum(["passed", "failed", "not applicable"])
         .optional()
         .describe("Filter by check result: passed, failed, or not applicable"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(25)
-        .describe("Maximum number of checks to return (1-500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      limit: limitSchema(25, 500),
+      offset: offsetSchema,
     },
     async ({ agent_id, policy_id, result, limit, offset }) => {
       try {

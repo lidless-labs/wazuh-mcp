@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { limitSchema, offsetSchema, optionalSearchTextSchema, sortSchema } from "./schemas.js";
 
 export function registerDecoderTools(
   server: McpServer,
@@ -10,27 +10,10 @@ export function registerDecoderTools(
     "list_decoders",
     "List all available Wazuh decoders with optional name filtering",
     {
-      name: z
-        .string()
-        .optional()
-        .describe("Filter by decoder name"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum number of decoders to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
-      sort: z
-        .string()
-        .optional()
-        .describe("Sort field with direction prefix (e.g., '-name')"),
+      name: optionalSearchTextSchema.describe("Filter by decoder name"),
+      limit: limitSchema(10),
+      offset: offsetSchema,
+      sort: sortSchema(["name", "-name", "+name", "filename", "-filename", "+filename"], "Sort field with direction prefix (e.g., '-name')"),
     },
     async ({ name, limit, offset, sort }) => {
       try {

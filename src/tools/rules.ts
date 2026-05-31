@@ -1,6 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import {
+  limitSchema,
+  offsetSchema,
+  optionalSearchTextSchema,
+  ruleIdSchema,
+  searchTextSchema,
+  sortSchema,
+} from "./schemas.js";
 
 export function registerRuleTools(
   server: McpServer,
@@ -16,27 +24,10 @@ export function registerRuleTools(
         .min(0)
         .optional()
         .describe("Filter by rule severity level"),
-      group: z
-        .string()
-        .optional()
-        .describe("Filter by rule group name"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum number of rules to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
-      sort: z
-        .string()
-        .optional()
-        .describe("Sort field with direction prefix (e.g., '-level')"),
+      group: optionalSearchTextSchema.describe("Filter by rule group name"),
+      limit: limitSchema(10),
+      offset: offsetSchema,
+      sort: sortSchema(["level", "-level", "+level", "id", "-id", "+id"], "Sort field with direction prefix (e.g., '-level')"),
     },
     async ({ level, group, limit, offset, sort }) => {
       try {
@@ -91,10 +82,7 @@ export function registerRuleTools(
     "get_rule",
     "Get detailed information about a specific Wazuh rule by ID",
     {
-      rule_id: z
-        .number()
-        .int()
-        .describe("Rule identifier (e.g., 5710)"),
+      rule_id: ruleIdSchema,
     },
     async ({ rule_id }) => {
       try {
@@ -155,22 +143,9 @@ export function registerRuleTools(
     "search_rules",
     "Search Wazuh rules by description text",
     {
-      description: z
-        .string()
-        .describe("Search term to match against rule descriptions"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum number of rules to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      description: searchTextSchema.describe("Search term to match against rule descriptions"),
+      limit: limitSchema(10),
+      offset: offsetSchema,
       level: z
         .number()
         .int()

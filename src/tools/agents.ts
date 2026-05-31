@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import { includeIpSchema, withOptionalField } from "./output.js";
+import { agentIdSchema, limitSchema, offsetSchema, sortSchema } from "./schemas.js";
 
 export function registerAgentTools(
   server: McpServer,
@@ -17,23 +18,12 @@ export function registerAgentTools(
         .describe(
           "Filter by agent status: active, disconnected, never_connected, or pending"
         ),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum number of agents to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
-      sort: z
-        .string()
-        .optional()
-        .describe("Sort field with direction prefix (e.g., '-name', '+id')"),
+      limit: limitSchema(10),
+      offset: offsetSchema,
+      sort: sortSchema(
+        ["name", "-name", "+name", "id", "-id", "+id", "status", "-status", "+status"],
+        "Sort field with direction prefix (e.g., '-name', '+id')"
+      ),
       include_ip: includeIpSchema,
     },
     async ({ status, limit, offset, sort, include_ip = false }) => {
@@ -98,9 +88,7 @@ export function registerAgentTools(
     "get_agent",
     "Get detailed information about a specific Wazuh agent by ID",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
+      agent_id: agentIdSchema,
       include_ip: includeIpSchema,
     },
     async ({ agent_id, include_ip = false }) => {
@@ -174,9 +162,7 @@ export function registerAgentTools(
     "get_agent_stats",
     "Get system statistics (CPU, memory, disk) for a specific Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
+      agent_id: agentIdSchema,
     },
     async ({ agent_id }) => {
       try {

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import { includeIpSchema, withOptionalField } from "./output.js";
+import { groupIdSchema, limitSchema, offsetSchema } from "./schemas.js";
 
 export function registerGroupTools(
   server: McpServer,
@@ -11,19 +11,8 @@ export function registerGroupTools(
     "list_groups",
     "List all Wazuh agent groups",
     {
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(25)
-        .describe("Maximum number of groups to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      limit: limitSchema(25),
+      offset: offsetSchema,
     },
     async ({ limit, offset }) => {
       try {
@@ -65,22 +54,9 @@ export function registerGroupTools(
     "get_group_agents",
     "List agents belonging to a specific Wazuh group",
     {
-      group_id: z
-        .string()
-        .describe("Group name/identifier (e.g., 'default', 'linux-servers')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(25)
-        .describe("Maximum number of agents to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      group_id: groupIdSchema,
+      limit: limitSchema(25),
+      offset: offsetSchema,
       include_ip: includeIpSchema,
     },
     async ({ group_id, limit, offset, include_ip = false }) => {

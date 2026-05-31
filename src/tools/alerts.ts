@@ -7,6 +7,15 @@ import {
   includeRawDataSchema,
   withOptionalField,
 } from "./output.js";
+import {
+  agentIdSchema,
+  alertIdSchema,
+  limitSchema,
+  offsetSchema,
+  optionalSearchTextSchema,
+  ruleIdFilterSchema,
+  searchTextSchema,
+} from "./schemas.js";
 
 const NO_INDEXER_MSG =
   "Alerts require WAZUH_INDEXER_URL configuration. Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API.";
@@ -28,38 +37,18 @@ export function registerAlertTools(
     "get_alerts",
     "Retrieve recent security alerts from Wazuh with optional filtering",
     {
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum number of alerts to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      limit: limitSchema(10),
+      offset: offsetSchema,
       level: z
         .number()
         .int()
         .min(0)
         .optional()
         .describe("Minimum rule severity level"),
-      agent_id: z
-        .string()
-        .optional()
-        .describe("Filter by agent ID"),
-      rule_id: z
-        .string()
-        .optional()
-        .describe("Filter by specific rule ID"),
+      agent_id: agentIdSchema.optional().describe("Filter by agent ID"),
+      rule_id: ruleIdFilterSchema.optional(),
       sort: alertSortSchema,
-      search: z
-        .string()
-        .optional()
-        .describe("Search term for full_log text"),
+      search: optionalSearchTextSchema.describe("Search term for full_log text"),
       include_full_log: includeFullLogSchema,
     },
     async ({
@@ -141,9 +130,7 @@ export function registerAlertTools(
     "get_alert",
     "Retrieve a single security alert by its ID",
     {
-      alert_id: z
-        .string()
-        .describe("Alert identifier"),
+      alert_id: alertIdSchema,
       include_full_log: includeFullLogSchema,
       include_raw_data: includeRawDataSchema,
     },
@@ -224,32 +211,16 @@ export function registerAlertTools(
     "search_alerts",
     "Perform full-text search across Wazuh security alerts",
     {
-      query: z
-        .string()
-        .describe("Search query string"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum number of alerts to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      query: searchTextSchema.describe("Search query string"),
+      limit: limitSchema(10),
+      offset: offsetSchema,
       level: z
         .number()
         .int()
         .min(0)
         .optional()
         .describe("Minimum rule severity level"),
-      agent_id: z
-        .string()
-        .optional()
-        .describe("Filter by agent ID"),
+      agent_id: agentIdSchema.optional().describe("Filter by agent ID"),
       include_full_log: includeFullLogSchema,
     },
     async ({ query, limit, offset, level, agent_id, include_full_log = false }) => {
