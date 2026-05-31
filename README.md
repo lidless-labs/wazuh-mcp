@@ -93,6 +93,10 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 | `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
 | `get_manager_logs` | Full log descriptions | `include_description: true` |
 
+### Input Validation
+
+Tool inputs are validated before requests are sent to Wazuh. Pagination is bounded, search text is length-limited, sort fields are enumerated per tool, and path-oriented identifiers such as agent IDs, alert IDs, group IDs, and SCA policy IDs reject unsupported characters.
+
 ## Usage
 
 ### Claude Desktop

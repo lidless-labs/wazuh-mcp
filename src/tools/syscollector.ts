@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import { includeCommandSchema } from "./output.js";
+import { agentIdSchema, limitSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerSyscollectorTools(
   server: McpServer,
@@ -11,9 +11,7 @@ export function registerSyscollectorTools(
     "get_agent_os",
     "Get operating system information collected from a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
+      agent_id: agentIdSchema,
     },
     async ({ agent_id }) => {
       try {
@@ -48,26 +46,10 @@ export function registerSyscollectorTools(
     "get_agent_packages",
     "List software packages installed on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(25)
-        .describe("Maximum number of packages to return (1-500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
-      search: z
-        .string()
-        .optional()
-        .describe("Filter packages by name"),
+      agent_id: agentIdSchema,
+      limit: limitSchema(25, 500),
+      offset: offsetSchema,
+      search: optionalSearchTextSchema.describe("Filter packages by name"),
     },
     async ({ agent_id, limit, offset, search }) => {
       try {
@@ -117,26 +99,10 @@ export function registerSyscollectorTools(
     "get_agent_processes",
     "List running processes on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(25)
-        .describe("Maximum number of processes to return (1-500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
-      search: z
-        .string()
-        .optional()
-        .describe("Filter processes by name or command"),
+      agent_id: agentIdSchema,
+      limit: limitSchema(25, 500),
+      offset: offsetSchema,
+      search: optionalSearchTextSchema.describe("Filter processes by name or command"),
       include_command: includeCommandSchema,
     },
     async ({ agent_id, limit, offset, search, include_command = false }) => {
@@ -189,22 +155,9 @@ export function registerSyscollectorTools(
     "get_agent_ports",
     "List open network ports on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(25)
-        .describe("Maximum number of ports to return (1-500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      agent_id: agentIdSchema,
+      limit: limitSchema(25, 500),
+      offset: offsetSchema,
     },
     async ({ agent_id, limit, offset }) => {
       try {
@@ -251,9 +204,7 @@ export function registerSyscollectorTools(
     "get_agent_network",
     "List network interfaces and their IP addresses on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
+      agent_id: agentIdSchema,
     },
     async ({ agent_id }) => {
       try {
@@ -299,22 +250,9 @@ export function registerSyscollectorTools(
     "get_agent_hotfixes",
     "List Windows hotfixes/patches installed on a Wazuh agent",
     {
-      agent_id: z
-        .string()
-        .describe("Agent identifier (e.g., '001')"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(25)
-        .describe("Maximum number of hotfixes to return (1-500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      agent_id: agentIdSchema,
+      limit: limitSchema(25, 500),
+      offset: offsetSchema,
     },
     async ({ agent_id, limit, offset }) => {
       try {

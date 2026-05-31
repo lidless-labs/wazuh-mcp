@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import { includeDescriptionSchema } from "./output.js";
+import { limitSchema, managerSectionSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerManagerTools(
   server: McpServer,
@@ -11,27 +12,13 @@ export function registerManagerTools(
     "get_manager_logs",
     "Retrieve Wazuh manager logs with optional filtering by severity level or module tag",
     {
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(25)
-        .describe("Maximum number of log entries to return (1-100)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Pagination offset"),
+      limit: limitSchema(25),
+      offset: offsetSchema,
       level: z
         .enum(["info", "warning", "error", "critical", "debug"])
         .optional()
         .describe("Filter by log severity level"),
-      tag: z
-        .string()
-        .optional()
-        .describe("Filter by module/tag name (e.g., 'wazuh-modulesd', 'ossec-analysisd')"),
+      tag: optionalSearchTextSchema.describe("Filter by module/tag name (e.g., 'wazuh-modulesd', 'ossec-analysisd')"),
       include_description: includeDescriptionSchema,
     },
     async ({ limit, offset, level, tag, include_description = false }) => {
@@ -81,12 +68,9 @@ export function registerManagerTools(
     "get_manager_config",
     "Get the active Wazuh manager configuration for a specific section",
     {
-      section: z
-        .string()
+      section: managerSectionSchema
         .optional()
-        .describe(
-          "Configuration section to retrieve (e.g., 'vulnerability-detection', 'syscheck', 'rootcheck', 'alerts'). Omit to get the full configuration."
-        ),
+        .describe("Configuration section to retrieve. Omit to get the full configuration."),
     },
     async ({ section }) => {
       try {

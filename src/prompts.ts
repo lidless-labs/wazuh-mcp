@@ -1,11 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import { agentIdSchema, alertIdSchema } from "./tools/schemas.js";
 
 export function registerPrompts(server: McpServer): void {
   server.prompt(
     "investigate-alert",
     "Investigate a Wazuh security alert and provide analysis with remediation steps",
-    { alert_id: z.string().describe("The alert ID to investigate") },
+    { alert_id: alertIdSchema.describe("The alert ID to investigate") },
     ({ alert_id }) => ({
       messages: [
         {
@@ -32,7 +32,7 @@ export function registerPrompts(server: McpServer): void {
   server.prompt(
     "agent-health-check",
     "Perform a comprehensive health check on a Wazuh agent",
-    { agent_id: z.string().describe("The agent ID to check") },
+    { agent_id: agentIdSchema.describe("The agent ID to check") },
     ({ agent_id }) => ({
       messages: [
         {
