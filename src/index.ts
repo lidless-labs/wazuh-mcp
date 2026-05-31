@@ -15,6 +15,7 @@ import { registerSyscheckTools } from "./tools/syscheck.js";
 import { registerManagerTools } from "./tools/manager.js";
 import { registerGroupTools } from "./tools/groups.js";
 import { registerDiagnosticTools } from "./tools/diagnostics.js";
+import { registerVulnerabilityTools } from "./tools/vulnerabilities.js";
 import { registerResources } from "./resources.js";
 import { registerPrompts } from "./prompts.js";
 
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
   registerManagerTools(server, client);
   registerGroupTools(server, client);
   registerDiagnosticTools(server, client, config, indexerClient);
+  registerVulnerabilityTools(server, indexerClient);
 
   // Register resources and prompts
   registerResources(server, client, indexerClient);

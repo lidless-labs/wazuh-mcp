@@ -109,6 +109,50 @@ export interface WazuhAlert {
   data?: Record<string, unknown>;
 }
 
+// Vulnerability inventory
+export interface WazuhVulnerability {
+  id?: string;
+  agent?: {
+    id?: string;
+    name?: string;
+    version?: string;
+  };
+  host?: {
+    os?: {
+      full?: string;
+      kernel?: string;
+      name?: string;
+      platform?: string;
+      type?: string;
+      version?: string;
+    };
+  };
+  package?: {
+    architecture?: string;
+    description?: string;
+    installed?: string;
+    name?: string;
+    size?: number;
+    type?: string;
+    version?: string;
+  };
+  vulnerability?: {
+    category?: string;
+    classification?: string;
+    description?: string;
+    detected_at?: string;
+    enumeration?: string;
+    id?: string;
+    published_at?: string;
+    reference?: string;
+    score?: {
+      base?: number;
+      version?: string;
+    };
+    severity?: string;
+  };
+}
+
 // Rule
 export interface WazuhRule {
   id: number;

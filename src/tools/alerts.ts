@@ -10,6 +10,7 @@ import {
 import {
   agentIdSchema,
   alertIdSchema,
+  dateTimeSchema,
   limitSchema,
   offsetSchema,
   optionalSearchTextSchema,
@@ -49,6 +50,8 @@ export function registerAlertTools(
       rule_id: ruleIdFilterSchema.optional(),
       sort: alertSortSchema,
       search: optionalSearchTextSchema.describe("Search term for full_log text"),
+      start_time: dateTimeSchema.optional().describe("Only return alerts at or after this timestamp"),
+      end_time: dateTimeSchema.optional().describe("Only return alerts at or before this timestamp"),
       include_full_log: includeFullLogSchema,
     },
     async ({
@@ -59,6 +62,8 @@ export function registerAlertTools(
       rule_id,
       sort = "-timestamp",
       search,
+      start_time,
+      end_time,
       include_full_log = false,
     }) => {
       if (!indexerClient) {
@@ -74,6 +79,8 @@ export function registerAlertTools(
           agent_id,
           rule_id,
           search,
+          start_time,
+          end_time,
           sortOrder: parseTimestampSort(sort),
         });
 
@@ -102,6 +109,8 @@ export function registerAlertTools(
           limit,
           offset,
           sort,
+          start_time,
+          end_time,
           output: {
             full_log_included: include_full_log,
           },
@@ -221,9 +230,20 @@ export function registerAlertTools(
         .optional()
         .describe("Minimum rule severity level"),
       agent_id: agentIdSchema.optional().describe("Filter by agent ID"),
+      start_time: dateTimeSchema.optional().describe("Only return alerts at or after this timestamp"),
+      end_time: dateTimeSchema.optional().describe("Only return alerts at or before this timestamp"),
       include_full_log: includeFullLogSchema,
     },
-    async ({ query, limit, offset, level, agent_id, include_full_log = false }) => {
+    async ({
+      query,
+      limit,
+      offset,
+      level,
+      agent_id,
+      start_time,
+      end_time,
+      include_full_log = false,
+    }) => {
       if (!indexerClient) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
@@ -235,6 +255,8 @@ export function registerAlertTools(
         const { alerts, total } = await indexerClient.fullTextSearch(query, limit, offset, {
           level,
           agent_id,
+          start_time,
+          end_time,
         });
 
         const result = {
@@ -262,6 +284,8 @@ export function registerAlertTools(
           query,
           limit,
           offset,
+          start_time,
+          end_time,
           output: {
             full_log_included: include_full_log,
           },

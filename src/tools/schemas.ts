@@ -50,6 +50,18 @@ export const ruleIdFilterSchema = z
   .regex(/^\d+$/, "Rule ID must contain only digits")
   .describe("Filter by specific rule ID");
 
+export const cveIdSchema = z
+  .string()
+  .trim()
+  .min(13)
+  .max(32)
+  .regex(/^CVE-\d{4}-\d{4,}$/, "CVE ID must use the CVE-YYYY-NNNN format")
+  .describe("CVE identifier (e.g., CVE-2020-14393)");
+
+export const severitySchema = z
+  .enum(["Critical", "High", "Medium", "Low", "None", "Unknown"])
+  .describe("Vulnerability severity");
+
 export const searchTextSchema = z
   .string()
   .trim()
@@ -58,6 +70,12 @@ export const searchTextSchema = z
   .regex(safeText, "Search text contains unsupported characters");
 
 export const optionalSearchTextSchema = searchTextSchema.optional();
+
+export const dateTimeSchema = z
+  .string()
+  .trim()
+  .datetime({ offset: true })
+  .describe("ISO 8601 timestamp with timezone offset");
 
 export const managerSectionSchema = z
   .enum([

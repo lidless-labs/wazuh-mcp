@@ -24,7 +24,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for th
 
 ## Features
 
-- **26 MCP Tools** - Agents, alerts, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, manager, and diagnostics
+- **28 MCP Tools** - Agents, alerts, vulnerabilities, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, manager, and diagnostics
 - **3 MCP Resources** - Pre-built views for agents, recent alerts, and rule summaries
 - **3 MCP Prompts** - Alert investigation, agent health checks, and security overviews
 - **JWT Authentication** - Automatic token management with refresh on expiry
@@ -64,9 +64,9 @@ Set the following environment variables:
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
 
-### Wazuh Indexer (OpenSearch) - Required for Alerts
+### Wazuh Indexer (OpenSearch) - Required for Alerts and Vulnerabilities
 
-Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API. To enable alert tools (`get_alerts`, `get_alert`, `search_alerts`) and the `wazuh://alerts/recent` resource, configure the indexer connection:
+Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSearch), not the REST API. To enable alert tools (`get_alerts`, `get_alert`, `search_alerts`), vulnerability tools (`list_vulnerabilities`, `search_vulnerabilities`), and the `wazuh://alerts/recent` resource, configure the indexer connection:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
@@ -76,7 +76,7 @@ Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API. To 
 | `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
 | `WAZUH_INDEXER_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
 
-If `WAZUH_INDEXER_URL` is not set, alert tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
+If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
 
 When either SSL verification setting is `false`, the server prints a startup warning to stderr because Node.js applies disabled TLS verification process-wide.
 
@@ -89,6 +89,7 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 | `list_agents`, `get_agent`, `get_group_agents` | Agent IP details | `include_ip: true` |
 | `get_alerts`, `search_alerts` | `full_log` | `include_full_log: true` |
 | `get_alert` | `full_log`, raw `data` | `include_full_log: true`, `include_raw_data: true` |
+| `list_vulnerabilities`, `search_vulnerabilities` | Vulnerability descriptions | `include_description: true` |
 | `get_agent_processes` | Process command lines and arguments | `include_command: true` |
 | `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
 | `get_manager_logs` | Full log descriptions | `include_description: true` |
@@ -279,9 +280,16 @@ npm test       # Run tests
 
 | Tool | Description |
 |------|-------------|
-| `get_alerts` | Retrieve recent alerts with filtering by level, agent, rule, and text search |
+| `get_alerts` | Retrieve recent alerts with filtering by time range, level, agent, rule, and text search |
 | `get_alert` | Retrieve a single alert by ID |
-| `search_alerts` | Full-text search across all alerts |
+| `search_alerts` | Full-text search across alerts with optional time range filtering |
+
+### Vulnerability Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_vulnerabilities` | List vulnerability inventory with optional CVE, agent, severity, and package filters |
+| `search_vulnerabilities` | Search vulnerability inventory by CVE, package, agent, or description |
 
 ### Rule Tools
 
