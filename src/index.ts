@@ -14,16 +14,28 @@ import { registerRootcheckTools } from "./tools/rootcheck.js";
 import { registerSyscheckTools } from "./tools/syscheck.js";
 import { registerManagerTools } from "./tools/manager.js";
 import { registerGroupTools } from "./tools/groups.js";
+import { registerDiagnosticTools } from "./tools/diagnostics.js";
 import { registerResources } from "./resources.js";
 import { registerPrompts } from "./prompts.js";
 
+function configureTls(config: ReturnType<typeof getConfig>): void {
+  const insecureTargets: string[] = [];
+  if (!config.verifySsl) insecureTargets.push("Wazuh manager");
+  if (config.indexer && !config.indexer.verifySsl) insecureTargets.push("Wazuh Indexer");
+
+  if (insecureTargets.length > 0) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    console.error(
+      `Warning: TLS certificate verification is disabled for ${insecureTargets.join(
+        " and "
+      )}. Use this only for trusted self-signed lab environments.`
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const config = getConfig();
-
-  // Disable TLS verification if configured
-  if (!config.verifySsl) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  }
+  configureTls(config);
 
   const client = new WazuhClient(config);
   const indexerClient = config.indexer ? new WazuhIndexerClient(config.indexer) : undefined;
@@ -47,6 +59,7 @@ async function main(): Promise<void> {
   registerSyscheckTools(server, client);
   registerManagerTools(server, client);
   registerGroupTools(server, client);
+  registerDiagnosticTools(server, client, config, indexerClient);
 
   // Register resources and prompts
   registerResources(server, client, indexerClient);

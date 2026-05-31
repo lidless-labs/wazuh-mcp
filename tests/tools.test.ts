@@ -5,7 +5,9 @@ import { registerAlertTools } from "../src/tools/alerts.js";
 import { registerRuleTools } from "../src/tools/rules.js";
 import { registerDecoderTools } from "../src/tools/decoders.js";
 import { registerVersionTools } from "../src/tools/version.js";
+import { registerDiagnosticTools } from "../src/tools/diagnostics.js";
 import type { WazuhClient } from "../src/client.js";
+import type { WazuhConfig } from "../src/config.js";
 import type { WazuhIndexerClient } from "../src/indexer-client.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
@@ -44,6 +46,33 @@ function parseToolResult(result: {
   content: Array<{ type: string; text: string }>;
 }): unknown {
   return JSON.parse(result.content[0].text);
+}
+
+function captureDiagnosticTools(
+  mockClient: Partial<WazuhClient>,
+  mockConfig: WazuhConfig,
+  mockIndexerClient?: Partial<WazuhIndexerClient>
+): Map<string, ToolHandler> {
+  const tools = new Map<string, ToolHandler>();
+
+  const mockServer = {
+    tool: (
+      name: string,
+      _description: string,
+      _schema: unknown,
+      handler: ToolHandler
+    ) => {
+      tools.set(name, handler);
+    },
+  } as unknown as McpServer;
+
+  registerDiagnosticTools(
+    mockServer,
+    mockClient as WazuhClient,
+    mockConfig,
+    mockIndexerClient as WazuhIndexerClient | undefined
+  );
+  return tools;
 }
 
 describe("Agent Tools", () => {
@@ -312,6 +341,24 @@ describe("Alert Tools", () => {
         expect.objectContaining({ level: 12 })
       );
     });
+
+    it("should pass timestamp sort direction through to the indexer client", async () => {
+      vi.mocked(mockIndexerClient.getRecentAlerts!).mockResolvedValue({
+        alerts: [],
+        total: 0,
+      });
+
+      const handler = tools.get("get_alerts")!;
+      const result = await handler({ limit: 10, offset: 0, sort: "+timestamp" });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(mockIndexerClient.getRecentAlerts).toHaveBeenCalledWith(
+        10,
+        0,
+        expect.objectContaining({ sortOrder: "asc" })
+      );
+      expect(data.sort).toBe("+timestamp");
+    });
   });
 
   describe("get_alert", () => {
@@ -378,6 +425,101 @@ describe("Alert Tools", () => {
 
       expect(data.query).toBe("ssh failed");
     });
+  });
+});
+
+describe("Diagnostic Tools", () => {
+  const mockConfig: WazuhConfig = {
+    url: "https://api-user:api-pass@wazuh.example.com:55000",
+    username: "admin",
+    password: "secret-password",
+    verifySsl: false,
+    timeout: 30000,
+    indexer: {
+      url: "https://index-user:index-pass@indexer.example.com:9200",
+      username: "index-admin",
+      password: "indexer-secret",
+      verifySsl: false,
+    },
+  };
+
+  it("should return sanitized configuration without connectivity checks", async () => {
+    const mockClient: Partial<WazuhClient> = {
+      getVersion: vi.fn(),
+    };
+    const mockIndexerClient: Partial<WazuhIndexerClient> = {
+      getInfo: vi.fn(),
+    };
+    const tools = captureDiagnosticTools(mockClient, mockConfig, mockIndexerClient);
+
+    const handler = tools.get("diagnose_wazuh_connection")!;
+    const result = await handler({ check_connectivity: false });
+    const rawText = result.content[0].text;
+    const data = parseToolResult(result) as Record<string, unknown>;
+
+    expect(rawText).not.toContain("secret-password");
+    expect(rawText).not.toContain("indexer-secret");
+    expect(rawText).not.toContain("api-pass");
+    expect(rawText).not.toContain("index-pass");
+    expect(data.status).toBe("warning");
+    expect(mockClient.getVersion).not.toHaveBeenCalled();
+    expect(mockIndexerClient.getInfo).not.toHaveBeenCalled();
+  });
+
+  it("should report manager and indexer connectivity success", async () => {
+    const mockClient: Partial<WazuhClient> = {
+      getVersion: vi.fn().mockResolvedValue({
+        data: {
+          title: "Wazuh API REST",
+          api_version: "4.7.0",
+          revision: 40700,
+          license_name: "GPL 2.0",
+          license_url: "https://example.com/license",
+          hostname: "wazuh-manager",
+          timestamp: "2026-01-15T10:00:00Z",
+        },
+        error: 0,
+        message: "ok",
+      }),
+    };
+    const mockIndexerClient: Partial<WazuhIndexerClient> = {
+      getInfo: vi.fn().mockResolvedValue({
+        cluster_name: "wazuh-indexer",
+        version: { number: "2.11.0" },
+      }),
+    };
+    const tools = captureDiagnosticTools(
+      mockClient,
+      { ...mockConfig, verifySsl: true, indexer: { ...mockConfig.indexer!, verifySsl: true } },
+      mockIndexerClient
+    );
+
+    const handler = tools.get("diagnose_wazuh_connection")!;
+    const result = await handler({ check_connectivity: true });
+    const data = parseToolResult(result) as Record<string, unknown>;
+
+    expect(result.isError).toBe(false);
+    expect(data.status).toBe("ok");
+    expect(mockClient.getVersion).toHaveBeenCalledOnce();
+    expect(mockIndexerClient.getInfo).toHaveBeenCalledOnce();
+  });
+
+  it("should mark diagnostics as an error when connectivity fails", async () => {
+    const mockClient: Partial<WazuhClient> = {
+      getVersion: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+    };
+    const tools = captureDiagnosticTools(
+      mockClient,
+      { ...mockConfig, verifySsl: true, indexer: undefined }
+    );
+
+    const handler = tools.get("diagnose_wazuh_connection")!;
+    const result = await handler({ check_connectivity: true });
+    const data = parseToolResult(result) as Record<string, unknown>;
+
+    expect(result.isError).toBe(true);
+    expect(data.status).toBe("error");
+    expect(result.content[0].text).toContain("ECONNREFUSED");
   });
 });
 

@@ -5,6 +5,14 @@ import type { WazuhIndexerClient } from "../indexer-client.js";
 
 const NO_INDEXER_MSG =
   "Alerts require WAZUH_INDEXER_URL configuration. Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API.";
+const alertSortSchema = z
+  .enum(["timestamp", "-timestamp", "+timestamp"])
+  .default("-timestamp")
+  .describe("Sort by timestamp. Use '-timestamp' for newest first or '+timestamp' for oldest first.");
+
+function parseTimestampSort(sort: z.infer<typeof alertSortSchema>): "asc" | "desc" {
+  return sort.startsWith("+") ? "asc" : "desc";
+}
 
 export function registerAlertTools(
   server: McpServer,
@@ -42,16 +50,13 @@ export function registerAlertTools(
         .string()
         .optional()
         .describe("Filter by specific rule ID"),
-      sort: z
-        .string()
-        .optional()
-        .describe("Sort field with direction prefix (e.g., '-timestamp')"),
+      sort: alertSortSchema,
       search: z
         .string()
         .optional()
         .describe("Search term for full_log text"),
     },
-    async ({ limit, offset, level, agent_id, rule_id, search }) => {
+    async ({ limit, offset, level, agent_id, rule_id, sort = "-timestamp", search }) => {
       if (!indexerClient) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
@@ -65,6 +70,7 @@ export function registerAlertTools(
           agent_id,
           rule_id,
           search,
+          sortOrder: parseTimestampSort(sort),
         });
 
         const result = {
@@ -85,6 +91,7 @@ export function registerAlertTools(
           total,
           limit,
           offset,
+          sort,
         };
 
         return {
