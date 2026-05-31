@@ -19,7 +19,6 @@ export function registerResources(
       const agents = response.data.affected_items.map((agent) => ({
         id: agent.id,
         name: agent.name,
-        ip: agent.ip,
         status: agent.status,
         group: agent.group,
         os: agent.os?.name,

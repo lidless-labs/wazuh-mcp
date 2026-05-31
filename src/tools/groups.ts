@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { includeIpSchema, withOptionalField } from "./output.js";
 
 export function registerGroupTools(
   server: McpServer,
@@ -80,27 +81,37 @@ export function registerGroupTools(
         .min(0)
         .default(0)
         .describe("Pagination offset"),
+      include_ip: includeIpSchema,
     },
-    async ({ group_id, limit, offset }) => {
+    async ({ group_id, limit, offset, include_ip = false }) => {
       try {
         const response = await client.getGroupAgents(group_id, { limit, offset });
         const data = response.data;
 
         const result = {
           group_id,
-          agents: data.affected_items.map((agent) => ({
-            id: agent.id,
-            name: agent.name,
-            ip: agent.ip,
-            status: agent.status,
-            os_name: agent.os?.name,
-            os_platform: agent.os?.platform,
-            version: agent.version,
-            last_keepalive: agent.lastKeepAlive,
-          })),
+          agents: data.affected_items.map((agent) =>
+            withOptionalField(
+              {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status,
+                os_name: agent.os?.name,
+                os_platform: agent.os?.platform,
+                version: agent.version,
+                last_keepalive: agent.lastKeepAlive,
+              },
+              "ip",
+              agent.ip,
+              include_ip
+            )
+          ),
           total: data.total_affected_items,
           limit,
           offset,
+          output: {
+            ip_included: include_ip,
+          },
         };
 
         return {

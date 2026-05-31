@@ -80,6 +80,19 @@ If `WAZUH_INDEXER_URL` is not set, alert tools will return a helpful configurati
 
 When either SSL verification setting is `false`, the server prints a startup warning to stderr because Node.js applies disabled TLS verification process-wide.
 
+### Sensitive Output Defaults
+
+Several tools return minimized output by default to avoid exposing raw logs, IPs, command lines, hashes, or raw event payloads unless requested:
+
+| Tool | Hidden by default | Opt-in field |
+|------|-------------------|--------------|
+| `list_agents`, `get_agent`, `get_group_agents` | Agent IP details | `include_ip: true` |
+| `get_alerts`, `search_alerts` | `full_log` | `include_full_log: true` |
+| `get_alert` | `full_log`, raw `data` | `include_full_log: true`, `include_raw_data: true` |
+| `get_agent_processes` | Process command lines and arguments | `include_command: true` |
+| `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
+| `get_manager_logs` | Full log descriptions | `include_description: true` |
+
 ## Usage
 
 ### Claude Desktop

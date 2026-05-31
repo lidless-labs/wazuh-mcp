@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { includeIpSchema, withOptionalField } from "./output.js";
 
 export function registerAgentTools(
   server: McpServer,
@@ -33,8 +34,9 @@ export function registerAgentTools(
         .string()
         .optional()
         .describe("Sort field with direction prefix (e.g., '-name', '+id')"),
+      include_ip: includeIpSchema,
     },
-    async ({ status, limit, offset, sort }) => {
+    async ({ status, limit, offset, sort, include_ip = false }) => {
       try {
         const params: Record<string, string | number> = { limit, offset };
         if (status) params.status = status;
@@ -44,24 +46,33 @@ export function registerAgentTools(
         const data = response.data;
 
         const result = {
-          agents: data.affected_items.map((agent) => ({
-            id: agent.id,
-            name: agent.name,
-            ip: agent.ip,
-            status: agent.status,
-            group: agent.group,
-            os_name: agent.os?.name,
-            os_version: agent.os?.version,
-            os_platform: agent.os?.platform,
-            version: agent.version,
-            manager: agent.manager,
-            node_name: agent.node_name,
-            date_add: agent.dateAdd,
-            last_keepalive: agent.lastKeepAlive,
-          })),
+          agents: data.affected_items.map((agent) =>
+            withOptionalField(
+              {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status,
+                group: agent.group,
+                os_name: agent.os?.name,
+                os_version: agent.os?.version,
+                os_platform: agent.os?.platform,
+                version: agent.version,
+                manager: agent.manager,
+                node_name: agent.node_name,
+                date_add: agent.dateAdd,
+                last_keepalive: agent.lastKeepAlive,
+              },
+              "ip",
+              agent.ip,
+              include_ip
+            )
+          ),
           total: data.total_affected_items,
           limit,
           offset,
+          output: {
+            ip_included: include_ip,
+          },
         };
 
         return {
@@ -90,8 +101,9 @@ export function registerAgentTools(
       agent_id: z
         .string()
         .describe("Agent identifier (e.g., '001')"),
+      include_ip: includeIpSchema,
     },
-    async ({ agent_id }) => {
+    async ({ agent_id, include_ip = false }) => {
       try {
         const response = await client.getAgent(agent_id);
         const agents = response.data.affected_items;
@@ -110,20 +122,33 @@ export function registerAgentTools(
 
         const agent = agents[0];
         const result = {
-          id: agent.id,
-          name: agent.name,
-          ip: agent.ip,
-          status: agent.status,
-          group: agent.group,
-          os_name: agent.os?.name,
-          os_version: agent.os?.version,
-          os_platform: agent.os?.platform,
-          version: agent.version,
-          manager: agent.manager,
-          node_name: agent.node_name,
-          date_add: agent.dateAdd,
-          last_keepalive: agent.lastKeepAlive,
-          register_ip: agent.registerIP,
+          ...withOptionalField(
+            withOptionalField(
+              {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status,
+                group: agent.group,
+                os_name: agent.os?.name,
+                os_version: agent.os?.version,
+                os_platform: agent.os?.platform,
+                version: agent.version,
+                manager: agent.manager,
+                node_name: agent.node_name,
+                date_add: agent.dateAdd,
+                last_keepalive: agent.lastKeepAlive,
+              },
+              "ip",
+              agent.ip,
+              include_ip
+            ),
+            "register_ip",
+            agent.registerIP,
+            include_ip
+          ),
+          output: {
+            ip_included: include_ip,
+          },
         };
 
         return {

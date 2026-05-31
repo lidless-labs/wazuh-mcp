@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { includeDescriptionSchema } from "./output.js";
 
 export function registerManagerTools(
   server: McpServer,
@@ -31,8 +32,9 @@ export function registerManagerTools(
         .string()
         .optional()
         .describe("Filter by module/tag name (e.g., 'wazuh-modulesd', 'ossec-analysisd')"),
+      include_description: includeDescriptionSchema,
     },
-    async ({ limit, offset, level, tag }) => {
+    async ({ limit, offset, level, tag, include_description = false }) => {
       try {
         const params: Record<string, string | number> = { limit, offset };
         if (level) params.level = level;
@@ -46,11 +48,14 @@ export function registerManagerTools(
             timestamp: entry.timestamp,
             tag: entry.tag,
             level: entry.level,
-            description: entry.description,
+            ...(include_description ? { description: entry.description } : {}),
           })),
           total: data.total_affected_items,
           limit,
           offset,
+          output: {
+            description_included: include_description,
+          },
         };
 
         return {
