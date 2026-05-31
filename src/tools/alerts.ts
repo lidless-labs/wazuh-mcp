@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import type { WazuhIndexerClient } from "../indexer-client.js";
 import {
+  formatToolResponse,
   includeFullLogSchema,
   includeRawDataSchema,
   paginationMetadata,
@@ -119,7 +120,7 @@ export function registerAlertTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {
@@ -200,7 +201,7 @@ export function registerAlertTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {
@@ -295,7 +296,7 @@ export function registerAlertTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {

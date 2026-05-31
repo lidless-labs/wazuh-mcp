@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import {
+  formatToolResponse,
   includeDescriptionSchema,
   includeSensitiveConfigSchema,
   paginationMetadata,
@@ -52,7 +53,7 @@ export function registerManagerTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {

@@ -1,4 +1,7 @@
+import { Buffer } from "node:buffer";
 import { z } from "zod";
+
+const DEFAULT_MAX_TOOL_RESPONSE_BYTES = 250_000;
 
 export const includeIpSchema = z
   .boolean()
@@ -54,4 +57,37 @@ export function paginationMetadata(total: number, limit: number, offset: number)
     offset,
     has_more: offset + limit < total,
   };
+}
+
+function maxToolResponseBytes(): number {
+  const value = Number(process.env.WAZUH_MCP_MAX_RESPONSE_BYTES ?? DEFAULT_MAX_TOOL_RESPONSE_BYTES);
+  if (!Number.isInteger(value) || value <= 0) return DEFAULT_MAX_TOOL_RESPONSE_BYTES;
+  return value;
+}
+
+function truncateUtf8(text: string, maxBytes: number): string {
+  const buffer = Buffer.from(text, "utf8");
+  if (buffer.byteLength <= maxBytes) return text;
+  return buffer.subarray(0, maxBytes).toString("utf8");
+}
+
+export function formatToolResponse(value: unknown): string {
+  const text = JSON.stringify(value, null, 2);
+  const maxBytes = maxToolResponseBytes();
+  const byteLength = Buffer.byteLength(text, "utf8");
+  if (byteLength <= maxBytes) return text;
+
+  const preview = truncateUtf8(text, Math.max(0, Math.floor(maxBytes * 0.6)));
+  return JSON.stringify(
+    {
+      output: {
+        response_truncated: true,
+        max_response_bytes: maxBytes,
+        original_response_bytes: byteLength,
+      },
+      preview,
+    },
+    null,
+    2
+  );
 }

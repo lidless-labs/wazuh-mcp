@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhClient } from "../client.js";
+import { formatToolResponse } from "./output.js";
 
 export function registerVersionTools(
   server: McpServer,
@@ -24,7 +25,7 @@ export function registerVersionTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {

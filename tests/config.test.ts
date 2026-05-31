@@ -32,4 +32,20 @@ describe("getConfig", () => {
 
     expect(() => getConfig()).toThrow("WAZUH_TIMEOUT must be a positive integer");
   });
+
+  it("should parse indexer timeout as milliseconds", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_TIMEOUT", "12");
+
+    expect(getConfig().indexer?.timeout).toBe(12000);
+  });
+
+  it("should reject invalid indexer timeout values", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_TIMEOUT", "later");
+
+    expect(() => getConfig()).toThrow("WAZUH_INDEXER_TIMEOUT must be a positive integer");
+  });
 });

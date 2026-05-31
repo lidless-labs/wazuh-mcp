@@ -25,11 +25,10 @@ function configureTls(config: ReturnType<typeof getConfig>): void {
   if (config.indexer && !config.indexer.verifySsl) insecureTargets.push("Wazuh Indexer");
 
   if (insecureTargets.length > 0) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     console.error(
       `Warning: TLS certificate verification is disabled for ${insecureTargets.join(
         " and "
-      )}. Use this only for trusted self-signed lab environments.`
+      )}. Verification is disabled only for those configured clients. Use this only for trusted self-signed lab environments.`
     );
   }
 }

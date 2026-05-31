@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
-import { includeHashesSchema, paginationMetadata } from "./output.js";
+import { formatToolResponse, includeHashesSchema, paginationMetadata } from "./output.js";
 import { agentIdSchema, limitSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
 export function registerSyscheckTools(
@@ -55,7 +55,7 @@ export function registerSyscheckTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {

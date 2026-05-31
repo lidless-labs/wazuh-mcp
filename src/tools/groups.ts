@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhClient } from "../client.js";
-import { includeIpSchema, paginationMetadata, withOptionalField } from "./output.js";
+import { formatToolResponse, includeIpSchema, paginationMetadata, withOptionalField } from "./output.js";
 import { groupIdSchema, limitSchema, offsetSchema } from "./schemas.js";
 
 export function registerGroupTools(
@@ -33,7 +33,7 @@ export function registerGroupTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {
@@ -93,7 +93,7 @@ export function registerGroupTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {

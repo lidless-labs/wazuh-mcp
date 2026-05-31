@@ -61,6 +61,7 @@ Set the following environment variables:
 | `WAZUH_PASSWORD` | Yes | - | API password |
 | `WAZUH_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
+| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. |
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
 
@@ -75,10 +76,11 @@ Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSe
 | `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
 | `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
 | `WAZUH_INDEXER_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
+| `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
 
 If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
 
-When either SSL verification setting is `false`, the server prints a startup warning to stderr because Node.js applies disabled TLS verification process-wide.
+When either SSL verification setting is `false`, the server prints a startup warning to stderr. TLS verification is disabled only for that configured Wazuh client.
 
 ### Sensitive Output Defaults
 
@@ -100,6 +102,10 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 Tool inputs are validated before requests are sent to Wazuh. Pagination is bounded, search text is length-limited, sort fields are enumerated per tool, and path-oriented identifiers such as agent IDs, alert IDs, group IDs, and SCA policy IDs reject unsupported characters.
 
 Paginated tool responses include a `pagination` object with `total`, `limit`, `offset`, and `has_more` fields while preserving the existing top-level `total`, `limit`, and `offset` fields.
+
+Tool responses are capped by `WAZUH_MCP_MAX_RESPONSE_BYTES`. Oversized responses return valid JSON with `output.response_truncated`, byte counts, and a preview instead of flooding the MCP client.
+
+Transient manager `GET` requests and indexer search/readiness requests retry briefly on `429`, `502`, `503`, `504`, and common transient network reset or timeout errors.
 
 ## Usage
 

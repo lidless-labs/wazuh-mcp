@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { WazuhClient, WazuhClientError, WazuhAuthenticationError } from "../src/client.js";
 import type { WazuhConfig } from "../src/config.js";
+import { httpRequest, type HttpResponse } from "../src/http.js";
+
+vi.mock("../src/http.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/http.js")>();
+  return {
+    ...actual,
+    httpRequest: vi.fn(),
+  };
+});
 
 const mockConfig: WazuhConfig = {
   url: "https://wazuh.example.com:55000",
@@ -12,42 +21,33 @@ const mockConfig: WazuhConfig = {
 
 const mockToken = "eyJhbGciOiJIUzI1NiJ9.mock-jwt-token";
 
-function mockFetchResponse(body: unknown, status = 200): Response {
+const requestSpy = vi.mocked(httpRequest);
+
+function mockFetchResponse(body: unknown, status = 200): HttpResponse {
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 200 ? "OK" : "Error",
     json: () => Promise.resolve(body),
-    headers: new Headers(),
-    redirected: false,
-    type: "basic",
-    url: "",
-    clone: () => mockFetchResponse(body, status),
-    body: null,
-    bodyUsed: false,
-    arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
-    blob: () => Promise.resolve(new Blob()),
-    formData: () => Promise.resolve(new FormData()),
     text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
+  };
 }
 
 describe("WazuhClient", () => {
   let client: WazuhClient;
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    requestSpy.mockReset();
     client = new WazuhClient(mockConfig);
-    fetchSpy = vi.spyOn(globalThis, "fetch");
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    requestSpy.mockReset();
   });
 
   describe("authenticate", () => {
     it("should authenticate and store token", async () => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -57,10 +57,12 @@ describe("WazuhClient", () => {
 
       const token = await client.authenticate();
       expect(token).toBe(mockToken);
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(requestSpy).toHaveBeenCalledWith(
         "https://wazuh.example.com:55000/security/user/authenticate",
         expect.objectContaining({
           method: "POST",
+          timeoutMs: 30000,
+          verifySsl: false,
           headers: expect.objectContaining({
             Authorization: expect.stringContaining("Basic "),
           }),
@@ -69,14 +71,14 @@ describe("WazuhClient", () => {
     });
 
     it("should throw WazuhAuthenticationError on 401", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({}, 401));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse({}, 401));
       await expect(client.authenticate()).rejects.toThrow(
         WazuhAuthenticationError
       );
     });
 
     it("should throw WazuhAuthenticationError on missing token", async () => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({ data: {}, error: 0, message: "ok" })
       );
       await expect(client.authenticate()).rejects.toThrow(
@@ -85,7 +87,7 @@ describe("WazuhClient", () => {
     });
 
     it("should encode credentials as base64", async () => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -96,7 +98,7 @@ describe("WazuhClient", () => {
       await client.authenticate();
 
       const expectedBase64 = Buffer.from("admin:secret").toString("base64");
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(requestSpy).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -110,7 +112,7 @@ describe("WazuhClient", () => {
   describe("request", () => {
     beforeEach(() => {
       // First call is always auth
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -120,7 +122,7 @@ describe("WazuhClient", () => {
     });
 
     it("should auto-authenticate on first request", async () => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { affected_items: [], total_affected_items: 0 },
           error: 0,
@@ -129,11 +131,11 @@ describe("WazuhClient", () => {
 
       await client.get("/agents");
       // First call: auth, second call: actual request
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(requestSpy).toHaveBeenCalledTimes(2);
     });
 
     it("should pass query parameters", async () => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { affected_items: [], total_affected_items: 0 },
           error: 0,
@@ -142,13 +144,13 @@ describe("WazuhClient", () => {
 
       await client.get("/agents", { limit: 10, status: "active" });
 
-      const calledUrl = fetchSpy.mock.calls[1][0] as string;
+      const calledUrl = requestSpy.mock.calls[1][0] as string;
       expect(calledUrl).toContain("limit=10");
       expect(calledUrl).toContain("status=active");
     });
 
     it("should include Bearer token in requests", async () => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { affected_items: [], total_affected_items: 0 },
           error: 0,
@@ -157,7 +159,7 @@ describe("WazuhClient", () => {
 
       await client.get("/agents");
 
-      expect(fetchSpy.mock.calls[1][1]).toEqual(
+      expect(requestSpy.mock.calls[1][1]).toEqual(
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: `Bearer ${mockToken}`,
@@ -168,9 +170,9 @@ describe("WazuhClient", () => {
 
     it("should retry on 401 with fresh token", async () => {
       // First API call returns 401
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({}, 401));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse({}, 401));
       // Re-auth
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: "new-token" },
           error: 0,
@@ -178,7 +180,7 @@ describe("WazuhClient", () => {
         })
       );
       // Retry succeeds
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { affected_items: [], total_affected_items: 0 },
           error: 0,
@@ -191,22 +193,56 @@ describe("WazuhClient", () => {
         error: 0,
       });
       // auth + first try + re-auth + retry = 4 calls
-      expect(fetchSpy).toHaveBeenCalledTimes(4);
+      expect(requestSpy).toHaveBeenCalledTimes(4);
     });
 
     it("should throw WazuhClientError on non-401 errors", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ message: "Internal Server Error" }, 500)
+      requestSpy.mockResolvedValueOnce(
+        mockFetchResponse(
+          {
+            message:
+              "Internal Server Error for password secret and bearer eyJabc.def.ghi at https://user:pass@example.com?token=abc",
+          },
+          500
+        )
       );
 
-      await expect(client.get("/agents")).rejects.toThrow(WazuhClientError);
+      await client.get("/agents").then(
+        () => {
+          throw new Error("Expected request to fail");
+        },
+        (error: unknown) => {
+          expect(error).toBeInstanceOf(WazuhClientError);
+          expect((error as Error).message).not.toContain("secret");
+          expect((error as Error).message).not.toContain("user:pass");
+          expect((error as Error).message).not.toContain("abc");
+        }
+      );
+    });
+
+    it("should retry transient GET failures", async () => {
+      requestSpy.mockResolvedValueOnce(mockFetchResponse({ message: "busy" }, 503));
+      requestSpy.mockResolvedValueOnce(
+        mockFetchResponse({
+          data: { affected_items: [], total_affected_items: 0 },
+          error: 0,
+        })
+      );
+
+      const result = await client.get("/agents");
+
+      expect(result).toEqual({
+        data: { affected_items: [], total_affected_items: 0 },
+        error: 0,
+      });
+      expect(requestSpy).toHaveBeenCalledTimes(3);
     });
 
     it("should throw WazuhClientError if retry also fails", async () => {
       // First call returns 401
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({}, 401));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse({}, 401));
       // Re-auth succeeds
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: "new-token" },
           error: 0,
@@ -214,7 +250,7 @@ describe("WazuhClient", () => {
         })
       );
       // Retry also fails
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({}, 403));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse({}, 403));
 
       await expect(client.get("/agents")).rejects.toThrow(WazuhClientError);
     });
@@ -222,7 +258,7 @@ describe("WazuhClient", () => {
 
   describe("path segment encoding", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -297,16 +333,16 @@ describe("WazuhClient", () => {
       ];
 
       for (const [call, expectedUrl] of calls) {
-        fetchSpy.mockResolvedValueOnce(mockFetchResponse(emptyPage));
+        requestSpy.mockResolvedValueOnce(mockFetchResponse(emptyPage));
         await call();
-        expect(fetchSpy.mock.lastCall?.[0]).toBe(expectedUrl);
+        expect(requestSpy.mock.lastCall?.[0]).toBe(expectedUrl);
       }
     });
   });
 
   describe("getAgents", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -339,7 +375,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockAgents));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockAgents));
 
       const result = await client.getAgents({ limit: 10 });
       expect(result.data.affected_items).toHaveLength(2);
@@ -350,7 +386,7 @@ describe("WazuhClient", () => {
 
   describe("getAgent", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -379,7 +415,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockAgent));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockAgent));
 
       const result = await client.getAgent("001");
       expect(result.data.affected_items[0].id).toBe("001");
@@ -389,7 +425,7 @@ describe("WazuhClient", () => {
 
   describe("getAlerts", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -423,7 +459,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockAlerts));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockAlerts));
 
       const result = await client.getAlerts({ limit: 10 });
       expect(result.data.affected_items).toHaveLength(1);
@@ -433,7 +469,7 @@ describe("WazuhClient", () => {
 
   describe("getRules", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -466,7 +502,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockRules));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockRules));
 
       const result = await client.getRules({ limit: 10 });
       expect(result.data.affected_items[0].id).toBe(5710);
@@ -478,7 +514,7 @@ describe("WazuhClient", () => {
 
   describe("getRule", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -505,7 +541,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockRule));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockRule));
 
       const result = await client.getRule(5710);
       expect(result.data.affected_items[0].id).toBe(5710);
@@ -514,7 +550,7 @@ describe("WazuhClient", () => {
 
   describe("getDecoders", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -547,7 +583,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockDecoders));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockDecoders));
 
       const result = await client.getDecoders({ limit: 10 });
       expect(result.data.affected_items).toHaveLength(2);
@@ -557,7 +593,7 @@ describe("WazuhClient", () => {
 
   describe("getVersion", () => {
     beforeEach(() => {
-      fetchSpy.mockResolvedValueOnce(
+      requestSpy.mockResolvedValueOnce(
         mockFetchResponse({
           data: { token: mockToken },
           error: 0,
@@ -580,7 +616,7 @@ describe("WazuhClient", () => {
         error: 0,
       };
 
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(mockVersion));
+      requestSpy.mockResolvedValueOnce(mockFetchResponse(mockVersion));
 
       const result = await client.getVersion();
       expect(result.data.api_version).toBe("4.7.0");

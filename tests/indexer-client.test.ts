@@ -1,52 +1,53 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WazuhIndexerClient } from "../src/indexer-client.js";
+import { httpRequest, type HttpResponse } from "../src/http.js";
 
-function mockFetchResponse(body: unknown, status = 200): Response {
+vi.mock("../src/http.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/http.js")>();
+  return {
+    ...actual,
+    httpRequest: vi.fn(),
+  };
+});
+
+const requestSpy = vi.mocked(httpRequest);
+
+function mockFetchResponse(body: unknown, status = 200): HttpResponse {
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 200 ? "OK" : "Error",
     json: () => Promise.resolve(body),
-    headers: new Headers(),
-    redirected: false,
-    type: "basic",
-    url: "",
-    clone: () => mockFetchResponse(body, status),
-    body: null,
-    bodyUsed: false,
-    arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
-    blob: () => Promise.resolve(new Blob()),
-    formData: () => Promise.resolve(new FormData()),
     text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
+  };
 }
 
 describe("WazuhIndexerClient", () => {
   let client: WazuhIndexerClient;
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    requestSpy.mockReset();
     client = new WazuhIndexerClient({
       url: "https://indexer.example.com:9200",
       username: "admin",
       password: "secret",
       verifySsl: false,
+      timeout: 30000,
     });
-    fetchSpy = vi.spyOn(globalThis, "fetch");
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    requestSpy.mockReset();
   });
 
   it("should sort alert searches by descending timestamp by default", async () => {
-    fetchSpy.mockResolvedValueOnce(
+    requestSpy.mockResolvedValueOnce(
       mockFetchResponse({ hits: { total: { value: 0, relation: "eq" }, hits: [] } })
     );
 
     await client.searchAlerts({ match_all: {} }, 10, 0);
 
-    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as Record<
+    const requestBody = JSON.parse(requestSpy.mock.calls[0][1]?.body as string) as Record<
       string,
       unknown
     >;
@@ -55,13 +56,13 @@ describe("WazuhIndexerClient", () => {
   });
 
   it("should support ascending timestamp sort for recent alerts", async () => {
-    fetchSpy.mockResolvedValueOnce(
+    requestSpy.mockResolvedValueOnce(
       mockFetchResponse({ hits: { total: { value: 0, relation: "eq" }, hits: [] } })
     );
 
     await client.getRecentAlerts(10, 0, { sortOrder: "asc" });
 
-    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as Record<
+    const requestBody = JSON.parse(requestSpy.mock.calls[0][1]?.body as string) as Record<
       string,
       unknown
     >;
@@ -69,7 +70,7 @@ describe("WazuhIndexerClient", () => {
   });
 
   it("should add alert timestamp range filters", async () => {
-    fetchSpy.mockResolvedValueOnce(
+    requestSpy.mockResolvedValueOnce(
       mockFetchResponse({ hits: { total: { value: 0, relation: "eq" }, hits: [] } })
     );
 
@@ -78,7 +79,7 @@ describe("WazuhIndexerClient", () => {
       end_time: "2026-01-02T00:00:00.000Z",
     });
 
-    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
+    const requestBody = JSON.parse(requestSpy.mock.calls[0][1]?.body as string) as {
       query: { bool: { must: unknown[] } };
     };
     expect(requestBody.query.bool.must).toContainEqual({
@@ -92,7 +93,7 @@ describe("WazuhIndexerClient", () => {
   });
 
   it("should query vulnerability inventory with filters", async () => {
-    fetchSpy.mockResolvedValueOnce(
+    requestSpy.mockResolvedValueOnce(
       mockFetchResponse({
         hits: {
           total: { value: 1, relation: "eq" },
@@ -122,12 +123,12 @@ describe("WazuhIndexerClient", () => {
       severity: "Low",
     });
 
-    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
+    const requestBody = JSON.parse(requestSpy.mock.calls[0][1]?.body as string) as {
       query: { bool: { must: unknown[] } };
       sort: unknown;
       track_total_hits?: boolean;
     };
-    expect(fetchSpy.mock.calls[0][0]).toBe(
+    expect(requestSpy.mock.calls[0][0]).toBe(
       "https://indexer.example.com:9200/wazuh-states-vulnerabilities*/_search"
     );
     expect(requestBody.query.bool.must).toContainEqual({
@@ -144,17 +145,19 @@ describe("WazuhIndexerClient", () => {
   });
 
   it("should fetch indexer info for diagnostics", async () => {
-    fetchSpy.mockResolvedValueOnce(
+    requestSpy.mockResolvedValueOnce(
       mockFetchResponse({ cluster_name: "wazuh-indexer", version: { number: "2.11.0" } })
     );
 
     const info = await client.getInfo();
 
     expect(info.cluster_name).toBe("wazuh-indexer");
-    expect(fetchSpy).toHaveBeenCalledWith(
+    expect(requestSpy).toHaveBeenCalledWith(
       "https://indexer.example.com:9200/",
       expect.objectContaining({
         method: "GET",
+        timeoutMs: 30000,
+        verifySsl: false,
         headers: expect.objectContaining({
           Authorization: expect.stringContaining("Basic "),
         }),
@@ -163,12 +166,12 @@ describe("WazuhIndexerClient", () => {
   });
 
   it("should check index readiness for diagnostics", async () => {
-    fetchSpy.mockResolvedValueOnce(mockFetchResponse(null));
+    requestSpy.mockResolvedValueOnce(mockFetchResponse(null));
 
     const exists = await client.indexExists("wazuh-states-vulnerabilities*");
 
     expect(exists).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledWith(
+    expect(requestSpy).toHaveBeenCalledWith(
       "https://indexer.example.com:9200/wazuh-states-vulnerabilities*",
       expect.objectContaining({
         method: "HEAD",
@@ -180,8 +183,20 @@ describe("WazuhIndexerClient", () => {
   });
 
   it("should return false when an index is missing", async () => {
-    fetchSpy.mockResolvedValueOnce(mockFetchResponse(null, 404));
+    requestSpy.mockResolvedValueOnce(mockFetchResponse(null, 404));
 
     await expect(client.indexExists("missing-index*")).resolves.toBe(false);
+  });
+
+  it("should retry transient indexer search failures", async () => {
+    requestSpy.mockResolvedValueOnce(mockFetchResponse({ error: { type: "busy" } }, 503));
+    requestSpy.mockResolvedValueOnce(
+      mockFetchResponse({ hits: { total: { value: 0, relation: "eq" }, hits: [] } })
+    );
+
+    const result = await client.searchAlerts({ match_all: {} }, 10, 0);
+
+    expect(result.total).toBe(0);
+    expect(requestSpy).toHaveBeenCalledTimes(2);
   });
 });

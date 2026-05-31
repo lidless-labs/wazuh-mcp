@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
-import { includeIpSchema, paginationMetadata, withOptionalField } from "./output.js";
+import { formatToolResponse, includeIpSchema, paginationMetadata, withOptionalField } from "./output.js";
 import { agentIdSchema, limitSchema, offsetSchema, sortSchema } from "./schemas.js";
 
 export function registerAgentTools(
@@ -67,7 +67,7 @@ export function registerAgentTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {
@@ -141,7 +141,7 @@ export function registerAgentTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {
@@ -196,7 +196,7 @@ export function registerAgentTools(
         };
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
         return {

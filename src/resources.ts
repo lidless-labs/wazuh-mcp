@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhClient } from "./client.js";
 import type { WazuhIndexerClient } from "./indexer-client.js";
+import { formatToolResponse } from "./tools/output.js";
 
 export function registerResources(
   server: McpServer,
@@ -31,11 +32,7 @@ export function registerResources(
           {
             uri: "wazuh://agents",
             mimeType: "application/json",
-            text: JSON.stringify(
-              { agents, total: response.data.total_affected_items },
-              null,
-              2
-            ),
+            text: formatToolResponse({ agents, total: response.data.total_affected_items }),
           },
         ],
       };
@@ -81,7 +78,7 @@ export function registerResources(
           {
             uri: "wazuh://alerts/recent",
             mimeType: "application/json",
-            text: JSON.stringify({ alerts, total }, null, 2),
+            text: formatToolResponse({ alerts, total }),
           },
         ],
       };
@@ -109,11 +106,7 @@ export function registerResources(
           {
             uri: "wazuh://rules/summary",
             mimeType: "application/json",
-            text: JSON.stringify(
-              { rules, total: response.data.total_affected_items },
-              null,
-              2
-            ),
+            text: formatToolResponse({ rules, total: response.data.total_affected_items }),
           },
         ],
       };
