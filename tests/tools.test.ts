@@ -6,6 +6,10 @@ import { registerRuleTools } from "../src/tools/rules.js";
 import { registerDecoderTools } from "../src/tools/decoders.js";
 import { registerVersionTools } from "../src/tools/version.js";
 import { registerDiagnosticTools } from "../src/tools/diagnostics.js";
+import { registerGroupTools } from "../src/tools/groups.js";
+import { registerManagerTools } from "../src/tools/manager.js";
+import { registerSyscheckTools } from "../src/tools/syscheck.js";
+import { registerSyscollectorTools } from "../src/tools/syscollector.js";
 import type { WazuhClient } from "../src/client.js";
 import type { WazuhConfig } from "../src/config.js";
 import type { WazuhIndexerClient } from "../src/indexer-client.js";
@@ -124,6 +128,36 @@ describe("Agent Tools", () => {
       const agents = data.agents as Array<Record<string, unknown>>;
       expect(agents[0].name).toBe("server-1");
       expect(agents[0].os_name).toBe("Ubuntu");
+      expect(agents[0].ip).toBeUndefined();
+      expect((data.output as Record<string, unknown>).ip_included).toBe(false);
+    });
+
+    it("should include agent IPs only when requested", async () => {
+      vi.mocked(mockClient.getAgents!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: "001",
+              name: "server-1",
+              ip: "10.0.0.1",
+              status: "active",
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("list_agents")!;
+      const result = await handler({ limit: 10, offset: 0, include_ip: true });
+      const data = parseToolResult(result) as Record<string, unknown>;
+      const agents = data.agents as Array<Record<string, unknown>>;
+
+      expect(agents[0].ip).toBe("10.0.0.1");
+      expect((data.output as Record<string, unknown>).ip_included).toBe(true);
     });
 
     it("should pass status filter to client", async () => {
@@ -189,7 +223,38 @@ describe("Agent Tools", () => {
 
       expect(data.id).toBe("001");
       expect(data.os_name).toBe("CentOS");
+      expect(data.ip).toBeUndefined();
+      expect(data.register_ip).toBeUndefined();
+    });
+
+    it("should include agent IP details only when requested", async () => {
+      vi.mocked(mockClient.getAgent!).mockResolvedValue({
+        data: {
+          affected_items: [
+            {
+              id: "001",
+              name: "server-1",
+              ip: "10.0.0.1",
+              status: "active",
+              os: { name: "CentOS", version: "8", platform: "linux" },
+              registerIP: "any",
+            },
+          ],
+          total_affected_items: 1,
+          failed_items: [],
+          total_failed_items: 0,
+        },
+        error: 0,
+        message: "ok",
+      });
+
+      const handler = tools.get("get_agent")!;
+      const result = await handler({ agent_id: "001", include_ip: true });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.ip).toBe("10.0.0.1");
       expect(data.register_ip).toBe("any");
+      expect((data.output as Record<string, unknown>).ip_included).toBe(true);
     });
 
     it("should return error for missing agent", async () => {
@@ -324,6 +389,30 @@ describe("Alert Tools", () => {
       expect(alerts[0].rule_id).toBe("5710");
       expect(alerts[0].rule_level).toBe(5);
       expect(alerts[0].agent_name).toBe("server-1");
+      expect(alerts[0].full_log).toBeUndefined();
+      expect((data.output as Record<string, unknown>).full_log_included).toBe(false);
+    });
+
+    it("should include alert full logs only when requested", async () => {
+      vi.mocked(mockIndexerClient.getRecentAlerts!).mockResolvedValue({
+        alerts: [
+          {
+            id: "alert-123",
+            timestamp: "2026-01-15T10:30:00.000Z",
+            rule: { id: "5710", level: 5 },
+            full_log: "sensitive raw alert log",
+          },
+        ],
+        total: 1,
+      });
+
+      const handler = tools.get("get_alerts")!;
+      const result = await handler({ limit: 10, offset: 0, include_full_log: true });
+      const data = parseToolResult(result) as Record<string, unknown>;
+      const alerts = data.alerts as Array<Record<string, unknown>>;
+
+      expect(alerts[0].full_log).toBe("sensitive raw alert log");
+      expect((data.output as Record<string, unknown>).full_log_included).toBe(true);
     });
 
     it("should pass level filter through to the indexer client", async () => {
@@ -368,6 +457,8 @@ describe("Alert Tools", () => {
         timestamp: "2026-01-15T10:30:00.000Z",
         rule: { id: "5710", level: 5, description: "SSH login attempt" },
         agent: { id: "001", name: "server-1" },
+        full_log: "sensitive raw alert log",
+        data: { user: "root" },
       } as never);
 
       const handler = tools.get("get_alert")!;
@@ -375,6 +466,31 @@ describe("Alert Tools", () => {
       const data = parseToolResult(result) as Record<string, unknown>;
 
       expect(data.id).toBe("alert-123");
+      expect(data.full_log).toBeUndefined();
+      expect(data.data).toBeUndefined();
+      expect((data.output as Record<string, unknown>).full_log_included).toBe(false);
+      expect((data.output as Record<string, unknown>).raw_data_included).toBe(false);
+    });
+
+    it("should include single alert raw fields only when requested", async () => {
+      vi.mocked(mockIndexerClient.getAlert!).mockResolvedValue({
+        id: "alert-123",
+        timestamp: "2026-01-15T10:30:00.000Z",
+        rule: { id: "5710", level: 5, description: "SSH login attempt" },
+        full_log: "sensitive raw alert log",
+        data: { user: "root" },
+      } as never);
+
+      const handler = tools.get("get_alert")!;
+      const result = await handler({
+        alert_id: "alert-123",
+        include_full_log: true,
+        include_raw_data: true,
+      });
+      const data = parseToolResult(result) as Record<string, unknown>;
+
+      expect(data.full_log).toBe("sensitive raw alert log");
+      expect(data.data).toEqual({ user: "root" });
     });
 
     it("should return error when alert not found", async () => {
@@ -424,6 +540,7 @@ describe("Alert Tools", () => {
       const data = parseToolResult(result) as Record<string, unknown>;
 
       expect(data.query).toBe("ssh failed");
+      expect((data.output as Record<string, unknown>).full_log_included).toBe(false);
     });
   });
 });
@@ -725,6 +842,299 @@ describe("Decoder Tools", () => {
         expect.objectContaining({ name: "sshd" })
       );
     });
+  });
+});
+
+describe("Group Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getGroups: vi.fn(),
+      getGroupAgents: vi.fn(),
+    };
+    tools = captureTools(registerGroupTools, mockClient);
+  });
+
+  it("should omit group agent IPs by default", async () => {
+    vi.mocked(mockClient.getGroupAgents!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            id: "001",
+            name: "server-1",
+            ip: "10.0.0.1",
+            status: "active",
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_group_agents")!;
+    const result = await handler({ group_id: "default", limit: 10, offset: 0 });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const agents = data.agents as Array<Record<string, unknown>>;
+
+    expect(agents[0].ip).toBeUndefined();
+    expect((data.output as Record<string, unknown>).ip_included).toBe(false);
+  });
+
+  it("should include group agent IPs only when requested", async () => {
+    vi.mocked(mockClient.getGroupAgents!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            id: "001",
+            name: "server-1",
+            ip: "10.0.0.1",
+            status: "active",
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_group_agents")!;
+    const result = await handler({
+      group_id: "default",
+      limit: 10,
+      offset: 0,
+      include_ip: true,
+    });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const agents = data.agents as Array<Record<string, unknown>>;
+
+    expect(agents[0].ip).toBe("10.0.0.1");
+    expect((data.output as Record<string, unknown>).ip_included).toBe(true);
+  });
+});
+
+describe("Manager Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getManagerLogs: vi.fn(),
+    };
+    tools = captureTools(registerManagerTools, mockClient);
+  });
+
+  it("should omit manager log descriptions by default", async () => {
+    vi.mocked(mockClient.getManagerLogs!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            timestamp: "2026-01-15T10:00:00Z",
+            tag: "wazuh-modulesd",
+            level: "info",
+            description: "sensitive host log line",
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_manager_logs")!;
+    const result = await handler({ limit: 10, offset: 0 });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const logs = data.logs as Array<Record<string, unknown>>;
+
+    expect(logs[0].description).toBeUndefined();
+    expect((data.output as Record<string, unknown>).description_included).toBe(false);
+  });
+
+  it("should include manager log descriptions only when requested", async () => {
+    vi.mocked(mockClient.getManagerLogs!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            timestamp: "2026-01-15T10:00:00Z",
+            tag: "wazuh-modulesd",
+            level: "info",
+            description: "sensitive host log line",
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_manager_logs")!;
+    const result = await handler({
+      limit: 10,
+      offset: 0,
+      include_description: true,
+    });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const logs = data.logs as Array<Record<string, unknown>>;
+
+    expect(logs[0].description).toBe("sensitive host log line");
+  });
+});
+
+describe("Syscollector Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getAgentProcesses: vi.fn(),
+    };
+    tools = captureTools(registerSyscollectorTools, mockClient);
+  });
+
+  it("should omit process command lines by default", async () => {
+    vi.mocked(mockClient.getAgentProcesses!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            pid: 123,
+            name: "bash",
+            cmd: "/bin/bash -lc secret",
+            argvs: ["bash", "-lc", "secret"],
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_agent_processes")!;
+    const result = await handler({ agent_id: "001", limit: 10, offset: 0 });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const processes = data.processes as Array<Record<string, unknown>>;
+
+    expect(processes[0].cmd).toBeUndefined();
+    expect(processes[0].argvs).toBeUndefined();
+    expect((data.output as Record<string, unknown>).command_included).toBe(false);
+  });
+
+  it("should include process command lines only when requested", async () => {
+    vi.mocked(mockClient.getAgentProcesses!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            pid: 123,
+            name: "bash",
+            cmd: "/bin/bash -lc secret",
+            argvs: ["bash", "-lc", "secret"],
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_agent_processes")!;
+    const result = await handler({
+      agent_id: "001",
+      limit: 10,
+      offset: 0,
+      include_command: true,
+    });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const processes = data.processes as Array<Record<string, unknown>>;
+
+    expect(processes[0].cmd).toBe("/bin/bash -lc secret");
+    expect(processes[0].argvs).toEqual(["bash", "-lc", "secret"]);
+  });
+});
+
+describe("Syscheck Tools", () => {
+  let mockClient: Partial<WazuhClient>;
+  let tools: Map<string, ToolHandler>;
+
+  beforeEach(() => {
+    mockClient = {
+      getFimFiles: vi.fn(),
+    };
+    tools = captureTools(registerSyscheckTools, mockClient);
+  });
+
+  it("should omit FIM hashes by default", async () => {
+    vi.mocked(mockClient.getFimFiles!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            file: "/etc/passwd",
+            type: "file",
+            md5: "md5-value",
+            sha256: "sha256-value",
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_fim_files")!;
+    const result = await handler({ agent_id: "001", limit: 10, offset: 0 });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const files = data.files as Array<Record<string, unknown>>;
+
+    expect(files[0].md5).toBeUndefined();
+    expect(files[0].sha256).toBeUndefined();
+    expect((data.output as Record<string, unknown>).hashes_included).toBe(false);
+  });
+
+  it("should include FIM hashes only when requested", async () => {
+    vi.mocked(mockClient.getFimFiles!).mockResolvedValue({
+      data: {
+        affected_items: [
+          {
+            file: "/etc/passwd",
+            type: "file",
+            md5: "md5-value",
+            sha256: "sha256-value",
+          },
+        ],
+        total_affected_items: 1,
+        failed_items: [],
+        total_failed_items: 0,
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_fim_files")!;
+    const result = await handler({
+      agent_id: "001",
+      limit: 10,
+      offset: 0,
+      include_hashes: true,
+    });
+    const data = parseToolResult(result) as Record<string, unknown>;
+    const files = data.files as Array<Record<string, unknown>>;
+
+    expect(files[0].md5).toBe("md5-value");
+    expect(files[0].sha256).toBe("sha256-value");
   });
 });
 

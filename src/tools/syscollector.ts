@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { includeCommandSchema } from "./output.js";
 
 export function registerSyscollectorTools(
   server: McpServer,
@@ -136,8 +137,9 @@ export function registerSyscollectorTools(
         .string()
         .optional()
         .describe("Filter processes by name or command"),
+      include_command: includeCommandSchema,
     },
-    async ({ agent_id, limit, offset, search }) => {
+    async ({ agent_id, limit, offset, search, include_command = false }) => {
       try {
         const params: Record<string, string | number> = { limit, offset };
         if (search) params.search = search;
@@ -152,14 +154,16 @@ export function registerSyscollectorTools(
             name: proc.name,
             state: proc.state,
             ppid: proc.ppid,
-            cmd: proc.cmd,
-            argvs: proc.argvs,
             euser: proc.euser,
             vm_size: proc.vm_size,
+            ...(include_command ? { cmd: proc.cmd, argvs: proc.argvs } : {}),
           })),
           total: data.total_affected_items,
           limit,
           offset,
+          output: {
+            command_included: include_command,
+          },
         };
 
         return {

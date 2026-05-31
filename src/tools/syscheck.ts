@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
+import { includeHashesSchema } from "./output.js";
 
 export function registerSyscheckTools(
   server: McpServer,
@@ -34,8 +35,9 @@ export function registerSyscheckTools(
         .enum(["file", "registry_key", "registry_value"])
         .optional()
         .describe("Filter by entry type: file, registry_key, or registry_value"),
+      include_hashes: includeHashesSchema,
     },
-    async ({ agent_id, limit, offset, search, type }) => {
+    async ({ agent_id, limit, offset, search, type, include_hashes = false }) => {
       try {
         const params: Record<string, string | number> = { limit, offset };
         if (search) params.search = search;
@@ -55,13 +57,15 @@ export function registerSyscheckTools(
             perm: entry.perm,
             uname: entry.uname,
             gname: entry.gname,
-            md5: entry.md5,
-            sha256: entry.sha256,
             changed_attributes: entry.changed_attributes,
+            ...(include_hashes ? { md5: entry.md5, sha256: entry.sha256 } : {}),
           })),
           total: data.total_affected_items,
           limit,
           offset,
+          output: {
+            hashes_included: include_hashes,
+          },
         };
 
         return {

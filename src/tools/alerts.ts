@@ -2,6 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import type { WazuhIndexerClient } from "../indexer-client.js";
+import {
+  includeFullLogSchema,
+  includeRawDataSchema,
+  withOptionalField,
+} from "./output.js";
 
 const NO_INDEXER_MSG =
   "Alerts require WAZUH_INDEXER_URL configuration. Wazuh 4.x stores alerts in the Wazuh Indexer (OpenSearch), not the REST API.";
@@ -55,8 +60,18 @@ export function registerAlertTools(
         .string()
         .optional()
         .describe("Search term for full_log text"),
+      include_full_log: includeFullLogSchema,
     },
-    async ({ limit, offset, level, agent_id, rule_id, sort = "-timestamp", search }) => {
+    async ({
+      limit,
+      offset,
+      level,
+      agent_id,
+      rule_id,
+      sort = "-timestamp",
+      search,
+      include_full_log = false,
+    }) => {
       if (!indexerClient) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
@@ -74,24 +89,33 @@ export function registerAlertTools(
         });
 
         const result = {
-          alerts: alerts.map((alert) => ({
-            id: alert.id,
-            timestamp: alert.timestamp,
-            rule_id: alert.rule?.id,
-            rule_level: alert.rule?.level,
-            rule_description: alert.rule?.description,
-            rule_groups: alert.rule?.groups,
-            agent_id: alert.agent?.id,
-            agent_name: alert.agent?.name,
-            location: alert.location,
-            decoder: alert.decoder?.name,
-            full_log: alert.full_log,
-            mitre: alert.rule?.mitre,
-          })),
+          alerts: alerts.map((alert) =>
+            withOptionalField(
+              {
+                id: alert.id,
+                timestamp: alert.timestamp,
+                rule_id: alert.rule?.id,
+                rule_level: alert.rule?.level,
+                rule_description: alert.rule?.description,
+                rule_groups: alert.rule?.groups,
+                agent_id: alert.agent?.id,
+                agent_name: alert.agent?.name,
+                location: alert.location,
+                decoder: alert.decoder?.name,
+                mitre: alert.rule?.mitre,
+              },
+              "full_log",
+              alert.full_log,
+              include_full_log
+            )
+          ),
           total,
           limit,
           offset,
           sort,
+          output: {
+            full_log_included: include_full_log,
+          },
         };
 
         return {
@@ -120,8 +144,10 @@ export function registerAlertTools(
       alert_id: z
         .string()
         .describe("Alert identifier"),
+      include_full_log: includeFullLogSchema,
+      include_raw_data: includeRawDataSchema,
     },
-    async ({ alert_id }) => {
+    async ({ alert_id, include_full_log = false, include_raw_data = false }) => {
       if (!indexerClient) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
@@ -144,20 +170,35 @@ export function registerAlertTools(
           };
         }
 
+        const summary = withOptionalField(
+          withOptionalField(
+            {
+              id: alert.id,
+              timestamp: alert.timestamp,
+              rule_id: alert.rule?.id,
+              rule_level: alert.rule?.level,
+              rule_description: alert.rule?.description,
+              rule_groups: alert.rule?.groups,
+              agent_id: alert.agent?.id,
+              agent_name: alert.agent?.name,
+              location: alert.location,
+              decoder: alert.decoder?.name,
+              mitre: alert.rule?.mitre,
+            },
+            "full_log",
+            alert.full_log,
+            include_full_log
+          ),
+          "data",
+          alert.data,
+          include_raw_data
+        );
         const result = {
-          id: alert.id,
-          timestamp: alert.timestamp,
-          rule_id: alert.rule?.id,
-          rule_level: alert.rule?.level,
-          rule_description: alert.rule?.description,
-          rule_groups: alert.rule?.groups,
-          agent_id: alert.agent?.id,
-          agent_name: alert.agent?.name,
-          location: alert.location,
-          decoder: alert.decoder?.name,
-          full_log: alert.full_log,
-          mitre: alert.rule?.mitre,
-          data: alert.data,
+          ...summary,
+          output: {
+            full_log_included: include_full_log,
+            raw_data_included: include_raw_data,
+          },
         };
 
         return {
@@ -209,8 +250,9 @@ export function registerAlertTools(
         .string()
         .optional()
         .describe("Filter by agent ID"),
+      include_full_log: includeFullLogSchema,
     },
-    async ({ query, limit, offset, level, agent_id }) => {
+    async ({ query, limit, offset, level, agent_id, include_full_log = false }) => {
       if (!indexerClient) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: NO_INDEXER_MSG }) }],
@@ -225,24 +267,33 @@ export function registerAlertTools(
         });
 
         const result = {
-          alerts: alerts.map((alert) => ({
-            id: alert.id,
-            timestamp: alert.timestamp,
-            rule_id: alert.rule?.id,
-            rule_level: alert.rule?.level,
-            rule_description: alert.rule?.description,
-            rule_groups: alert.rule?.groups,
-            agent_id: alert.agent?.id,
-            agent_name: alert.agent?.name,
-            location: alert.location,
-            decoder: alert.decoder?.name,
-            full_log: alert.full_log,
-            mitre: alert.rule?.mitre,
-          })),
+          alerts: alerts.map((alert) =>
+            withOptionalField(
+              {
+                id: alert.id,
+                timestamp: alert.timestamp,
+                rule_id: alert.rule?.id,
+                rule_level: alert.rule?.level,
+                rule_description: alert.rule?.description,
+                rule_groups: alert.rule?.groups,
+                agent_id: alert.agent?.id,
+                agent_name: alert.agent?.name,
+                location: alert.location,
+                decoder: alert.decoder?.name,
+                mitre: alert.rule?.mitre,
+              },
+              "full_log",
+              alert.full_log,
+              include_full_log
+            )
+          ),
           total,
           query,
           limit,
           offset,
+          output: {
+            full_log_included: include_full_log,
+          },
         };
 
         return {
