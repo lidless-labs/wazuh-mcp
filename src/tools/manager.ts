@@ -10,6 +10,15 @@ import {
 import { redactSensitiveConfig } from "./redaction.js";
 import { limitSchema, managerSectionSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
 
+// Raw (unredacted) manager configuration may only be exposed when the operator
+// explicitly opts in server-side. A model-supplied tool argument can never
+// enable it on its own. Defaults to off (always redact).
+function parseAllowSensitiveConfig(): boolean {
+  const value = process.env.WAZUH_ALLOW_SENSITIVE_CONFIG;
+  if (value === undefined) return false;
+  return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
 export function registerManagerTools(
   server: McpServer,
   client: WazuhClient
@@ -85,8 +94,14 @@ export function registerManagerTools(
         const params: Record<string, string | number> = {};
         if (section) params.section = section;
 
+        // Exposing raw/sensitive configuration is gated on a server-side env
+        // flag, not the model-supplied argument. If WAZUH_ALLOW_SENSITIVE_CONFIG
+        // is not enabled, always redact regardless of include_sensitive_config.
+        const sensitiveConfigAllowed = parseAllowSensitiveConfig();
+        const includeSensitive = sensitiveConfigAllowed && include_sensitive_config;
+
         const response = await client.getManagerConfig(params);
-        const config = include_sensitive_config
+        const config = includeSensitive
           ? response.data
           : redactSensitiveConfig(response.data);
 
@@ -99,7 +114,7 @@ export function registerManagerTools(
                   configuration: config,
                   section,
                   output: {
-                    sensitive_config_included: include_sensitive_config,
+                    sensitive_config_included: includeSensitive,
                   },
                 },
                 null,

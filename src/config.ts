@@ -15,6 +15,14 @@ export interface IndexerConfig {
   timeout: number;
 }
 
+function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  return defaultValue;
+}
+
 function parseTimeoutMs(value: string | undefined, envName: string): number {
   const timeoutSeconds = Number(value ?? "30");
   if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
@@ -45,8 +53,9 @@ export function getConfig(): WazuhConfig {
     );
   }
 
-  const verifySslStr = process.env.WAZUH_VERIFY_SSL ?? "false";
-  const verifySsl = verifySslStr.toLowerCase() === "true";
+  // Secure by default: verify TLS certificates unless the operator explicitly
+  // opts out (e.g. WAZUH_VERIFY_SSL=false/0/no/off for trusted self-signed labs).
+  const verifySsl = parseBooleanEnv(process.env.WAZUH_VERIFY_SSL, true);
   const timeout = parseTimeoutMs(process.env.WAZUH_TIMEOUT, "WAZUH_TIMEOUT");
 
   let indexer: IndexerConfig | undefined;
@@ -56,7 +65,7 @@ export function getConfig(): WazuhConfig {
       url: indexerUrl.replace(/\/+$/, ""),
       username: process.env.WAZUH_INDEXER_USERNAME ?? "admin",
       password: process.env.WAZUH_INDEXER_PASSWORD ?? "",
-      verifySsl: (process.env.WAZUH_INDEXER_VERIFY_SSL ?? "false").toLowerCase() === "true",
+      verifySsl: parseBooleanEnv(process.env.WAZUH_INDEXER_VERIFY_SSL, true),
       timeout: parseTimeoutMs(process.env.WAZUH_INDEXER_TIMEOUT, "WAZUH_INDEXER_TIMEOUT"),
     };
   }

@@ -36,7 +36,9 @@ export const includeDescriptionSchema = z
 export const includeSensitiveConfigSchema = z
   .boolean()
   .default(false)
-  .describe("Include sensitive manager configuration values in the response");
+  .describe(
+    "Request sensitive (unredacted) manager configuration values. Only honored when the server-side WAZUH_ALLOW_SENSITIVE_CONFIG flag is enabled; otherwise values are always redacted."
+  );
 
 export function withOptionalField<K extends string, V>(
   target: Record<string, unknown>,

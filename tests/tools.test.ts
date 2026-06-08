@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAgentTools } from "../src/tools/agents.js";
 import { registerAlertTools } from "../src/tools/alerts.js";
@@ -1088,6 +1088,10 @@ describe("Manager Tools", () => {
     tools = captureTools(registerManagerTools, mockClient);
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("should omit manager log descriptions by default", async () => {
     vi.mocked(mockClient.getManagerLogs!).mockResolvedValue({
       data: {
@@ -1176,7 +1180,8 @@ describe("Manager Tools", () => {
     expect((data.output as Record<string, unknown>).sensitive_config_included).toBe(false);
   });
 
-  it("should include sensitive manager config only when requested", async () => {
+  it("should include sensitive manager config only when the server allows it and it is requested", async () => {
+    vi.stubEnv("WAZUH_ALLOW_SENSITIVE_CONFIG", "true");
     vi.mocked(mockClient.getManagerConfig!).mockResolvedValue({
       data: {
         auth: {
@@ -1194,6 +1199,29 @@ describe("Manager Tools", () => {
 
     expect(text).toContain("manager-token");
     expect((data.output as Record<string, unknown>).sensitive_config_included).toBe(true);
+  });
+
+  it("should always redact when the server flag is off, even if the model requests sensitive config", async () => {
+    // WAZUH_ALLOW_SENSITIVE_CONFIG unset (default off): a model-supplied
+    // include_sensitive_config must NOT bypass redaction.
+    vi.mocked(mockClient.getManagerConfig!).mockResolvedValue({
+      data: {
+        auth: {
+          token: "manager-token",
+        },
+      },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_manager_config")!;
+    const result = await handler({ section: "auth", include_sensitive_config: true });
+    const text = result.content[0].text;
+    const data = parseToolResult(result) as Record<string, unknown>;
+
+    expect(text).not.toContain("manager-token");
+    expect(text).toContain("[REDACTED]");
+    expect((data.output as Record<string, unknown>).sensitive_config_included).toBe(false);
   });
 });
 

@@ -59,8 +59,9 @@ Set the following environment variables:
 | `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://10.0.0.2:55000`) |
 | `WAZUH_USERNAME` | Yes | - | API username |
 | `WAZUH_PASSWORD` | Yes | - | API password |
-| `WAZUH_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
+| `WAZUH_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
+| `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
 | `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. |
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
@@ -75,12 +76,12 @@ Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSe
 | `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://10.0.0.2:9200`) |
 | `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
 | `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
-| `WAZUH_INDEXER_VERIFY_SSL` | No | `false` | Set to `true` to verify SSL certificates. The default is intended for trusted self-signed lab environments only. |
+| `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
 | `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
 
 If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
 
-When either SSL verification setting is `false`, the server prints a startup warning to stderr. TLS verification is disabled only for that configured Wazuh client.
+SSL certificate verification is enabled by default (secure by default). When either SSL verification setting is explicitly set to `false`, the server prints a startup warning to stderr. TLS verification is disabled only for that configured Wazuh client.
 
 ### Sensitive Output Defaults
 
@@ -95,7 +96,7 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 | `get_agent_processes` | Process command lines and arguments | `include_command: true` |
 | `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
 | `get_manager_logs` | Full log descriptions | `include_description: true` |
-| `get_manager_config` | Secret-like config values | `include_sensitive_config: true` |
+| `get_manager_config` | Secret-like config values | `include_sensitive_config: true` (only honored when the server-side `WAZUH_ALLOW_SENSITIVE_CONFIG` flag is enabled; otherwise always redacted) |
 
 ### Input Validation
 

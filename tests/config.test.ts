@@ -48,4 +48,49 @@ describe("getConfig", () => {
 
     expect(() => getConfig()).toThrow("WAZUH_INDEXER_TIMEOUT must be a positive integer");
   });
+
+  it("should verify TLS by default when WAZUH_VERIFY_SSL is unset", () => {
+    setRequiredEnv();
+
+    expect(getConfig().verifySsl).toBe(true);
+  });
+
+  it("should honor an explicit WAZUH_VERIFY_SSL=false for self-signed labs", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_VERIFY_SSL", "false");
+
+    expect(getConfig().verifySsl).toBe(false);
+  });
+
+  it.each(["0", "no", "off", "FALSE"])(
+    "should treat WAZUH_VERIFY_SSL=%s as verification disabled",
+    (value) => {
+      setRequiredEnv();
+      vi.stubEnv("WAZUH_VERIFY_SSL", value);
+
+      expect(getConfig().verifySsl).toBe(false);
+    }
+  );
+
+  it("should keep verification enabled for WAZUH_VERIFY_SSL=true", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_VERIFY_SSL", "true");
+
+    expect(getConfig().verifySsl).toBe(true);
+  });
+
+  it("should verify the indexer TLS by default when its flag is unset", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+
+    expect(getConfig().indexer?.verifySsl).toBe(true);
+  });
+
+  it("should honor an explicit WAZUH_INDEXER_VERIFY_SSL=false", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_VERIFY_SSL", "false");
+
+    expect(getConfig().indexer?.verifySsl).toBe(false);
+  });
 });
