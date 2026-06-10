@@ -3,6 +3,11 @@
 Read-only TypeScript MCP server for the Wazuh SIEM/XDR platform: 28 tools, 3 resources, 3 prompts over stdio. Published to npm as `wazuh-mcp`.
 
 ## Definition of Done
+```bash
+./scripts/verify
+```
+It runs `npm test`, `npm run typecheck`, and `npm run build` in order, failing fast.
+
 A change is done only when these pass, re-verified after your final edit:
 - `npm test` (always)
 - `npm run typecheck` (always; alias: `npm run lint`)
