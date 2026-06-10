@@ -216,6 +216,34 @@ describe("Agent Tools", () => {
       const data = parseToolResult(result) as Record<string, unknown>;
       expect(data.error).toBe("Connection refused");
     });
+
+    it("should sanitize secrets in errors that bypass the client wrappers", async () => {
+      vi.mocked(mockClient.getAgents!).mockRejectedValue(
+        new Error(
+          "Unexpected token in JSON: Authorization: Bearer eyJhbGciOi.eyJzdWIi.c2lnbmF0dXJl at https://admin:hunter2@wazuh.example.com:55000/agents"
+        )
+      );
+
+      const handler = tools.get("list_agents")!;
+      const result = await handler({ limit: 10, offset: 0 });
+
+      expect(result.isError).toBe(true);
+      const rawText = result.content[0].text;
+      expect(rawText).not.toContain("eyJhbGciOi");
+      expect(rawText).not.toContain("hunter2");
+      expect(rawText).toContain("[REDACTED]");
+    });
+
+    it("should sanitize non-Error throws into the fallback message", async () => {
+      vi.mocked(mockClient.getAgents!).mockRejectedValue({ status: 500 });
+
+      const handler = tools.get("list_agents")!;
+      const result = await handler({ limit: 10, offset: 0 });
+
+      expect(result.isError).toBe(true);
+      const data = parseToolResult(result) as Record<string, unknown>;
+      expect(data.error).toBe("Unexpected error");
+    });
   });
 
   describe("get_agent", () => {

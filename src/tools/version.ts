@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { toolErrorResponse } from "./errors.js";
 import type { WazuhClient } from "../client.js";
 import { formatToolResponse } from "./output.js";
 
@@ -28,17 +29,7 @@ export function registerVersionTools(
           content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return toolErrorResponse(error);
       }
     }
   );

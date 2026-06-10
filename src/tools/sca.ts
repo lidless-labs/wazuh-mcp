@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { toolErrorResponse } from "./errors.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import { formatToolResponse, paginationMetadata } from "./output.js";
@@ -40,17 +41,7 @@ export function registerScaTools(
           content: [{ type: "text" as const, text: formatToolResponse(result) }],
         };
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return toolErrorResponse(error);
       }
     }
   );
@@ -102,17 +93,7 @@ export function registerScaTools(
           content: [{ type: "text" as const, text: formatToolResponse(mapped) }],
         };
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return toolErrorResponse(error);
       }
     }
   );
