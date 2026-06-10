@@ -358,13 +358,13 @@ describe("WazuhClient", () => {
             {
               id: "001",
               name: "agent-1",
-              ip: "10.0.0.1",
+              ip: "192.0.2.1",
               status: "active",
             },
             {
               id: "002",
               name: "agent-2",
-              ip: "10.0.0.2",
+              ip: "192.0.2.2",
               status: "disconnected",
             },
           ],
@@ -402,7 +402,7 @@ describe("WazuhClient", () => {
             {
               id: "001",
               name: "agent-1",
-              ip: "10.0.0.1",
+              ip: "192.0.2.1",
               status: "active",
               os: { name: "Ubuntu", version: "22.04", platform: "linux" },
               version: "Wazuh v4.7.0",

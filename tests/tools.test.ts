@@ -124,7 +124,7 @@ describe("Agent Tools", () => {
             {
               id: "001",
               name: "server-1",
-              ip: "10.0.0.1",
+              ip: "192.0.2.1",
               status: "active",
               group: ["default"],
               os: { name: "Ubuntu", version: "22.04", platform: "linux" },
@@ -163,7 +163,7 @@ describe("Agent Tools", () => {
             {
               id: "001",
               name: "server-1",
-              ip: "10.0.0.1",
+              ip: "192.0.2.1",
               status: "active",
             },
           ],
@@ -180,7 +180,7 @@ describe("Agent Tools", () => {
       const data = parseToolResult(result) as Record<string, unknown>;
       const agents = data.agents as Array<Record<string, unknown>>;
 
-      expect(agents[0].ip).toBe("10.0.0.1");
+      expect(agents[0].ip).toBe("192.0.2.1");
       expect((data.output as Record<string, unknown>).ip_included).toBe(true);
     });
 
@@ -254,7 +254,7 @@ describe("Agent Tools", () => {
             {
               id: "001",
               name: "server-1",
-              ip: "10.0.0.1",
+              ip: "192.0.2.1",
               status: "active",
               os: { name: "CentOS", version: "8", platform: "linux" },
               version: "Wazuh v4.7.0",
@@ -286,7 +286,7 @@ describe("Agent Tools", () => {
             {
               id: "001",
               name: "server-1",
-              ip: "10.0.0.1",
+              ip: "192.0.2.1",
               status: "active",
               os: { name: "CentOS", version: "8", platform: "linux" },
               registerIP: "any",
@@ -304,7 +304,7 @@ describe("Agent Tools", () => {
       const result = await handler({ agent_id: "001", include_ip: true });
       const data = parseToolResult(result) as Record<string, unknown>;
 
-      expect(data.ip).toBe("10.0.0.1");
+      expect(data.ip).toBe("192.0.2.1");
       expect(data.register_ip).toBe("any");
       expect((data.output as Record<string, unknown>).ip_included).toBe(true);
     });
@@ -335,7 +335,7 @@ describe("Agent Tools", () => {
       vi.mocked(mockClient.getAgent!).mockResolvedValue({
         data: {
           affected_items: [
-            { id: "001", name: "server-1", ip: "10.0.0.1", status: "active" },
+            { id: "001", name: "server-1", ip: "192.0.2.1", status: "active" },
           ],
           total_affected_items: 1,
           failed_items: [],
@@ -1064,7 +1064,7 @@ describe("Group Tools", () => {
           {
             id: "001",
             name: "server-1",
-            ip: "10.0.0.1",
+            ip: "192.0.2.1",
             status: "active",
           },
         ],
@@ -1092,7 +1092,7 @@ describe("Group Tools", () => {
           {
             id: "001",
             name: "server-1",
-            ip: "10.0.0.1",
+            ip: "192.0.2.1",
             status: "active",
           },
         ],
@@ -1114,7 +1114,7 @@ describe("Group Tools", () => {
     const data = parseToolResult(result) as Record<string, unknown>;
     const agents = data.agents as Array<Record<string, unknown>>;
 
-    expect(agents[0].ip).toBe("10.0.0.1");
+    expect(agents[0].ip).toBe("192.0.2.1");
     expect((data.output as Record<string, unknown>).ip_included).toBe(true);
   });
 });
