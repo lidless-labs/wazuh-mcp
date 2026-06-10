@@ -75,7 +75,7 @@ Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSe
 <!-- content-guard: allow private-ipv4 -->
 | `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://10.0.0.2:9200`) |
 | `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
-| `WAZUH_INDEXER_PASSWORD` | No | - | Indexer password |
+| `WAZUH_INDEXER_PASSWORD` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer password. The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. |
 | `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
 | `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
 

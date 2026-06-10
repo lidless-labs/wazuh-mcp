@@ -61,10 +61,19 @@ export function getConfig(): WazuhConfig {
   let indexer: IndexerConfig | undefined;
   const indexerUrl = process.env.WAZUH_INDEXER_URL;
   if (indexerUrl) {
+    // Fail fast instead of silently defaulting to an empty password and
+    // sending "Basic admin:" on every indexer request.
+    const indexerPassword = process.env.WAZUH_INDEXER_PASSWORD;
+    if (!indexerPassword) {
+      throw new Error(
+        "WAZUH_INDEXER_PASSWORD environment variable is required when WAZUH_INDEXER_URL is set. Set it to your Wazuh Indexer password, or unset WAZUH_INDEXER_URL to run without alert and vulnerability tools."
+      );
+    }
+
     indexer = {
       url: indexerUrl.replace(/\/+$/, ""),
       username: process.env.WAZUH_INDEXER_USERNAME ?? "admin",
-      password: process.env.WAZUH_INDEXER_PASSWORD ?? "",
+      password: indexerPassword,
       verifySsl: parseBooleanEnv(process.env.WAZUH_INDEXER_VERIFY_SSL, true),
       timeout: parseTimeoutMs(process.env.WAZUH_INDEXER_TIMEOUT, "WAZUH_INDEXER_TIMEOUT"),
     };

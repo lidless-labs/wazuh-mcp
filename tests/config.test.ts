@@ -36,6 +36,7 @@ describe("getConfig", () => {
   it("should parse indexer timeout as milliseconds", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_TIMEOUT", "12");
 
     expect(getConfig().indexer?.timeout).toBe(12000);
@@ -44,6 +45,7 @@ describe("getConfig", () => {
   it("should reject invalid indexer timeout values", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_TIMEOUT", "later");
 
     expect(() => getConfig()).toThrow("WAZUH_INDEXER_TIMEOUT must be a positive integer");
@@ -82,6 +84,7 @@ describe("getConfig", () => {
   it("should verify the indexer TLS by default when its flag is unset", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
 
     expect(getConfig().indexer?.verifySsl).toBe(true);
   });
@@ -89,8 +92,34 @@ describe("getConfig", () => {
   it("should honor an explicit WAZUH_INDEXER_VERIFY_SSL=false", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_VERIFY_SSL", "false");
 
     expect(getConfig().indexer?.verifySsl).toBe(false);
+  });
+
+  it("should fail fast when the indexer URL is set without a password", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+
+    expect(() => getConfig()).toThrow(
+      "WAZUH_INDEXER_PASSWORD environment variable is required when WAZUH_INDEXER_URL is set"
+    );
+  });
+
+  it("should reject an empty indexer password", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "");
+
+    expect(() => getConfig()).toThrow(
+      "WAZUH_INDEXER_PASSWORD environment variable is required when WAZUH_INDEXER_URL is set"
+    );
+  });
+
+  it("should not require an indexer password when no indexer URL is set", () => {
+    setRequiredEnv();
+
+    expect(getConfig().indexer).toBeUndefined();
   });
 });
