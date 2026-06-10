@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { getConfig } from "./config.js";
@@ -18,6 +19,13 @@ import { registerDiagnosticTools } from "./tools/diagnostics.js";
 import { registerVulnerabilityTools } from "./tools/vulnerabilities.js";
 import { registerResources } from "./resources.js";
 import { registerPrompts } from "./prompts.js";
+
+// Single source of truth for the server version. Both src/index.ts (tsx dev)
+// and dist/index.js (build output) sit one directory below the package root,
+// so the relative URL resolves to this package's package.json in both cases.
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+) as { version: string };
 
 function configureTls(config: ReturnType<typeof getConfig>): void {
   const insecureTargets: string[] = [];
@@ -42,7 +50,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "wazuh-mcp",
-    version: "1.0.0",
+    version: pkg.version,
     description:
       "MCP server for the Wazuh SIEM/XDR platform - query agents, alerts, rules, and decoders",
   });
