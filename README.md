@@ -98,6 +98,10 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 | `get_manager_logs` | Full log descriptions | `include_description: true` |
 | `get_manager_config` | Secret-like config values | `include_sensitive_config: true` (only honored when the server-side `WAZUH_ALLOW_SENSITIVE_CONFIG` flag is enabled; otherwise always redacted) |
 
+### Untrusted SIEM Content
+
+Alert and log fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) controls the text that lands in `full_log`, alert `rule_description`, raw event `data`, and manager log descriptions. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
+
 ### Input Validation
 
 Tool inputs are validated before requests are sent to Wazuh. Pagination is bounded, search text is length-limited, sort fields are enumerated per tool, and path-oriented identifiers such as agent IDs, alert IDs, group IDs, and SCA policy IDs reject unsupported characters.
