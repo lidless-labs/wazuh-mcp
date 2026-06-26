@@ -5,28 +5,67 @@
 <h1 align="center">wazuh-mcp</h1>
 
 <p align="center">
-  <strong>MCP server for Wazuh SIEM/XDR platform integration.</strong>
+  <strong>An MCP server that lets an AI client query your Wazuh SIEM/XDR: alerts, agents, vulnerabilities, rules, and more, read-only.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/actions/workflow/status/solomonneas/wazuh-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
-  <img src="https://img.shields.io/npm/v/wazuh-mcp?style=for-the-badge&logo=npm&logoColor=white" alt="npm version">
-  <img src="https://img.shields.io/badge/typescript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript 6.0">
-  <img src="https://img.shields.io/badge/node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 20+">
-  <img src="https://img.shields.io/badge/MCP-SDK_1.29-7c3aed?style=for-the-badge" alt="MCP SDK 1.29">
+  <img src="https://img.shields.io/npm/v/wazuh-mcp?style=for-the-badge&logo=npm&logoColor=white&label=npm" alt="npm version">
+  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/wazuh-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+  <img src="https://img.shields.io/badge/MCP-server-7c3aed?style=for-the-badge" alt="MCP server">
   <img src="https://img.shields.io/badge/Wazuh-SIEM%2FXDR-3385ff?style=for-the-badge" alt="Wazuh SIEM/XDR">
   <img src="https://img.shields.io/badge/MITRE_ATT%26CK-mapped-0f766e?style=for-the-badge" alt="MITRE ATT&CK mapped">
-  <img src="https://img.shields.io/badge/Vitest-4-6E9F18?style=for-the-badge&logo=vitest&logoColor=white" alt="Vitest 4">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
 </p>
 
-A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. Query agents, security alerts, detection rules, and decoders directly from Claude or any MCP-compatible client.
+<p align="center">
+  <strong>Website:</strong> <a href="https://lidless.dev/wazuh-mcp">lidless.dev/wazuh-mcp</a>
+</p>
+
+wazuh-mcp is a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. It exposes your Wazuh manager and Wazuh Indexer as MCP tools so Claude, Claude Code, or any MCP-compatible client can investigate alerts, triage agents, and pull vulnerability inventory in plain language. It is read-only by design and security-first: TLS verification is on by default, sensitive fields (agent IPs, full logs, file hashes, command lines) are hidden unless you opt in per call, and attacker-controlled SIEM text is wrapped in untrusted-data markers to blunt prompt injection against the calling model.
+
+## What it does
+
+wazuh-mcp turns a Wazuh SIEM/XDR deployment into a set of MCP tools an AI agent can call. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. It ships 28 tools, 3 resources, and 3 guided prompts over stdio. The server only ever reads from Wazuh: the sole writes it performs are JWT authentication against the manager and `_search` queries against the indexer.
+
+## Quickstart
+
+Run it straight from npm with `npx`, no clone or build required:
+
+```json
+{
+  "mcpServers": {
+    "wazuh": {
+      "command": "npx",
+      "args": ["-y", "wazuh-mcp"],
+      "env": {
+        "WAZUH_URL": "https://your-wazuh-manager:55000",
+        "WAZUH_USERNAME": "wazuh-wui",
+        "WAZUH_PASSWORD": "your-password",
+        "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
+        "WAZUH_INDEXER_USERNAME": "admin",
+        "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
+      }
+    }
+  }
+}
+```
+
+Drop that into your MCP client's server config (see [Usage](#usage) for the exact file per client), restart the client, and ask it something like *"list the active Wazuh agents"* or *"search alerts for brute force in the last 24 hours."* The indexer settings are optional: without them the agent, rule, decoder, and version tools still work, and the alert and vulnerability tools return a configuration message instead of failing.
+
+Prefer a global install?
+
+```bash
+npm install -g wazuh-mcp
+# then use "command": "wazuh-mcp" instead of the npx invocation above
+```
 
 ## Features
 
 - **28 MCP Tools** - Agents, alerts, vulnerabilities, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, manager, and diagnostics
 - **3 MCP Resources** - Pre-built views for agents, recent alerts, and rule summaries
 - **3 MCP Prompts** - Alert investigation, agent health checks, and security overviews
+- **Read-only by design** - The only writes are JWT auth and indexer `_search`; no tool changes Wazuh state
+- **Secure by default** - TLS verification on, sensitive fields redacted unless opted in, untrusted SIEM content delimited, every error sanitized before it reaches the client
 - **JWT Authentication** - Automatic token management with refresh on expiry
 - **Full Compliance Mapping** - PCI-DSS, GDPR, HIPAA, NIST 800-53, MITRE ATT&CK
 - **Pagination** - All list endpoints support limit/offset pagination
@@ -42,8 +81,10 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for th
 
 ## Installation
 
+The quickstart above runs the published npm package with `npx`, which is the recommended path. To work from source instead:
+
 ```bash
-git clone https://github.com/solomonneas/wazuh-mcp.git
+git clone https://github.com/lidless-labs/wazuh-mcp.git
 cd wazuh-mcp
 npm install
 npm run build
@@ -112,6 +153,8 @@ Transient manager `GET` requests and indexer search/readiness requests retry bri
 
 ## Usage
 
+The quickstart `mcpServers` block at the top works for most clients. The per-client recipes below give you the exact file location or CLI command for each.
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
@@ -120,7 +163,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "wazuh": {
-      "command": "wazuh-mcp",
+      "command": "npx",
+      "args": ["-y", "wazuh-mcp"],
       "env": {
         "WAZUH_URL": "https://your-wazuh-manager:55000",
         "WAZUH_USERNAME": "wazuh-wui",
@@ -144,14 +188,48 @@ claude mcp add wazuh \
   --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
   --env WAZUH_INDEXER_USERNAME=admin \
   --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
-  -- wazuh-mcp
+  -- npx -y wazuh-mcp
 ```
 
 Add `--scope user` to make it available from any directory instead of only the current project.
 
+### Codex CLI
+
+[Codex CLI](https://github.com/openai/codex) registers MCP servers via `codex mcp add`:
+
+```bash
+codex mcp add wazuh \
+  --env WAZUH_URL=https://your-wazuh-manager:55000 \
+  --env WAZUH_USERNAME=wazuh-wui \
+  --env WAZUH_PASSWORD=your-password \
+  --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
+  --env WAZUH_INDEXER_USERNAME=admin \
+  --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
+  -- npx -y wazuh-mcp
+```
+
+Codex writes the entry to `~/.codex/config.toml` under `[mcp_servers.wazuh]`. Verify with `codex mcp list`.
+
 ### OpenClaw
 
-If you're running from a source checkout instead of the npm-installed binary, point `command`/`args` at the built `dist/index.js`:
+With the npm package:
+
+```bash
+openclaw mcp set wazuh '{
+  "command": "npx",
+  "args": ["-y", "wazuh-mcp"],
+  "env": {
+    "WAZUH_URL": "https://your-wazuh-manager:55000",
+    "WAZUH_USERNAME": "wazuh-wui",
+    "WAZUH_PASSWORD": "your-password",
+    "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
+    "WAZUH_INDEXER_USERNAME": "admin",
+    "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
+  }
+}'
+```
+
+Or, when running from a source checkout, point `command`/`args` at the built `dist/index.js`:
 
 ```bash
 openclaw mcp set wazuh '{
@@ -168,23 +246,7 @@ openclaw mcp set wazuh '{
 }'
 ```
 
-Or, with the global npm install:
-
-```bash
-openclaw mcp set wazuh '{
-  "command": "wazuh-mcp",
-  "env": {
-    "WAZUH_URL": "https://your-wazuh-manager:55000",
-    "WAZUH_USERNAME": "wazuh-wui",
-    "WAZUH_PASSWORD": "your-password",
-    "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
-    "WAZUH_INDEXER_USERNAME": "admin",
-    "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
-  }
-}'
-```
-
-Then restart the OpenClaw gateway so the new server is picked up:
+Then restart the gateway so the new server is picked up:
 
 ```bash
 systemctl --user restart openclaw-gateway
@@ -198,7 +260,8 @@ openclaw mcp list   # confirm "wazuh" is registered
 ```yaml
 mcp_servers:
   wazuh:
-    command: "wazuh-mcp"
+    command: "npx"
+    args: ["-y", "wazuh-mcp"]
     env:
       WAZUH_URL: "https://your-wazuh-manager:55000"
       WAZUH_USERNAME: "wazuh-wui"
@@ -208,58 +271,7 @@ mcp_servers:
       WAZUH_INDEXER_PASSWORD: "your-indexer-password"
 ```
 
-Or, when running from a source checkout instead of the global npm install:
-
-```yaml
-mcp_servers:
-  wazuh:
-    command: "node"
-    args: ["/absolute/path/to/wazuh-mcp/dist/index.js"]
-    env:
-      WAZUH_URL: "https://your-wazuh-manager:55000"
-      WAZUH_USERNAME: "wazuh-wui"
-      WAZUH_PASSWORD: "your-password"
-      WAZUH_INDEXER_URL: "https://your-wazuh-indexer:9200"
-      WAZUH_INDEXER_USERNAME: "admin"
-      WAZUH_INDEXER_PASSWORD: "your-indexer-password"
-```
-
-Then reload MCP from inside a Hermes session:
-
-```
-/reload-mcp
-```
-
-### Codex CLI
-
-[Codex CLI](https://github.com/openai/codex) registers MCP servers via `codex mcp add`:
-
-```bash
-codex mcp add wazuh \
-  --env WAZUH_URL=https://your-wazuh-manager:55000 \
-  --env WAZUH_USERNAME=wazuh-wui \
-  --env WAZUH_PASSWORD=your-password \
-  --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
-  --env WAZUH_INDEXER_USERNAME=admin \
-  --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
-  -- wazuh-mcp
-```
-
-Or, when running from a source checkout:
-
-```bash
-codex mcp add wazuh \
-  --env WAZUH_URL=https://your-wazuh-manager:55000 \
-  --env WAZUH_USERNAME=wazuh-wui \
-  --env WAZUH_PASSWORD=your-password \
-  -- node /absolute/path/to/wazuh-mcp/dist/index.js
-```
-
-Codex writes the entry to `~/.codex/config.toml` under `[mcp_servers.wazuh]`. Verify with:
-
-```bash
-codex mcp list
-```
+Then reload MCP from inside a Hermes session with `/reload-mcp`.
 
 ### Standalone
 
@@ -267,7 +279,7 @@ codex mcp list
 export WAZUH_URL=https://your-wazuh-manager:55000
 export WAZUH_USERNAME=wazuh-wui
 export WAZUH_PASSWORD=your-password
-npm start
+npx -y wazuh-mcp
 ```
 
 ### Development
@@ -279,6 +291,8 @@ npm test       # Run tests
 ```
 
 ## MCP Tools
+
+All 28 tools are read-only.
 
 ### Agent Tools
 
@@ -403,6 +417,30 @@ List all rules with level 12 or higher to see critical detection rules
 and their compliance framework mappings.
 ```
 
+## Why not the Wazuh dashboard or the raw API?
+
+- **The Wazuh dashboard** is built for humans clicking through Kibana-style views. It is great for a SOC analyst at a screen, but an AI agent cannot drive it, and it does not turn natural-language questions into the right manager and indexer queries. wazuh-mcp gives the model typed tools instead.
+- **The raw Wazuh REST API + indexer `_search`** can be called directly, but then every agent has to learn JWT auth, the manager-versus-indexer split (alerts and vulnerabilities live in the indexer in Wazuh 4.x), pagination shapes, and which fields are sensitive. wazuh-mcp wraps all of that, validates inputs, caps response size, and sanitizes errors so credentials never leak back to the model.
+- **A general "run any HTTP request" tool** would technically reach Wazuh, but it hands the model your credentials, no input validation, no read-only guarantee, and no redaction of IPs, hashes, or full logs. This server is deliberately read-only and minimizes sensitive output by default.
+- **Writing your own Wazuh MCP shim** is reasonable, and the source here is MIT-licensed if you want to fork it. This one already handles auth refresh, the indexer fallback message, untrusted-content delimiting, transient-error retries, and 28 vetted tools.
+
+## What wazuh-mcp is not
+
+- **Not a write path.** No tool modifies Wazuh state. It cannot restart agents, edit rules, acknowledge alerts, or change configuration. The only writes are JWT authentication and indexer `_search` queries.
+- **Not a replacement for the Wazuh dashboard or SIEM.** It is a query surface for AI clients, not an analyst UI, a data store, or an alerting engine.
+- **Not a hosted service.** It runs locally as a stdio MCP server next to your client. Your Wazuh credentials stay on your machine and in your client's config.
+- **Not a guarantee against prompt injection.** It delimits attacker-influenced SIEM content and warns the model, which reduces risk but does not eliminate it. Treat tool output as data, not instructions.
+- **Not a way to bypass Wazuh access control.** It uses the credentials you give it and can see only what that account can see.
+
+## Documentation and links
+
+- **Website:** [lidless.dev/wazuh-mcp](https://lidless.dev/wazuh-mcp)
+- **npm:** [`wazuh-mcp`](https://www.npmjs.com/package/wazuh-mcp)
+- **Issues:** [github.com/lidless-labs/wazuh-mcp/issues](https://github.com/lidless-labs/wazuh-mcp/issues)
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **Security policy:** [SECURITY.md](SECURITY.md)
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ## Testing
 
 ```bash
@@ -450,4 +488,4 @@ wazuh-mcp/
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
