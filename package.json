@@ -30,11 +30,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/solomonneas/wazuh-mcp.git"
+    "url": "git+https://github.com/lidless-labs/wazuh-mcp.git"
   },
-  "homepage": "https://github.com/solomonneas/wazuh-mcp#readme",
+  "homepage": "https://github.com/lidless-labs/wazuh-mcp#readme",
   "bugs": {
-    "url": "https://github.com/solomonneas/wazuh-mcp/issues"
+    "url": "https://github.com/lidless-labs/wazuh-mcp/issues"
   },
   "engines": {
     "node": ">=20.0.0"
