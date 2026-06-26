@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+- OSS adoption upgrade: README now leads with a what/why/how summary, a
+  copy-paste `npx -y wazuh-mcp` MCP client config, a "What it does" overview,
+  and "Why not the dashboard or raw API?" and "What wazuh-mcp is not"
+  sections. Badges and links point at the `lidless-labs/wazuh-mcp` repository.
+- Added `SECURITY.md` (threat model and reporting), `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`, GitHub issue templates (`bug`, `feature`, routing
+  config), and a pull request template with a no-PII checkbox.
+
 ## [1.1.0] - 2026-06-10
 
 Security hardening release. The headline change: **TLS certificate verification

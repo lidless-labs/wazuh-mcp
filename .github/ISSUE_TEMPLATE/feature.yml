@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a new read-only tool, a better schema, or another improvement to wazuh-mcp.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        wazuh-mcp is **read-only by design**. The only writes it performs are JWT auth and indexer `_search`. Requests for state-changing tools (restart an agent, edit a rule, acknowledge an alert) need maintainer sign-off and will usually be declined; see CONTRIBUTING.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the workflow you want an AI client to handle against Wazuh that it cannot today.
+      placeholder: |
+        I want the model to pull active responses history for an agent, but there is no tool for it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed tool or change
+      description: If you know the underlying Wazuh manager or indexer endpoint, name it. Sketch the inputs and the shape of the output.
+      placeholder: |
+        New tool `get_agent_active_responses` mapping to GET /active-response/... (read-only).
+    validations:
+      required: false
+  - type: dropdown
+    id: read-only
+    attributes:
+      label: Is this read-only?
+      description: Does the request only read from Wazuh, or would it change state?
+      options:
+        - Read-only (queries Wazuh, changes nothing)
+        - State-changing (needs maintainer sign-off per CONTRIBUTING.md)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Existing tools, the Wazuh dashboard, or the raw API. Why are they not enough?
+    validations:
+      required: false

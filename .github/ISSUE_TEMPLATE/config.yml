@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Lidless Labs (project hub and tool catalog)
+    url: https://lidless.dev/wazuh-mcp
+    about: Project page, positioning, and the rest of the Lidless Labs MCP tools. Browse there for context rather than filing an issue.
+  - name: Security report
+    url: https://github.com/lidless-labs/wazuh-mcp/security/policy
+    about: Do not file security issues publicly. See SECURITY.md for how to report.
+  - name: Question or usage help
+    url: https://github.com/lidless-labs/wazuh-mcp/discussions
+    about: For setup, configuration, and how-to questions, please start a discussion instead of opening an issue.
+  - name: Wazuh itself (manager, indexer, agents)
+    url: https://github.com/wazuh/wazuh
+    about: Bugs in Wazuh, not in this MCP server, belong upstream in the Wazuh project.
