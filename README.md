@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/wazuh-mcp-banner.jpg" alt="wazuh-mcp banner">
+  <img src="docs/assets/wazuh-mcp-banner.jpg" alt="wazuh-mcp banner" width="900">
 </p>
 
 <h1 align="center">wazuh-mcp</h1>
@@ -9,16 +9,16 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/npm/v/wazuh-mcp?style=for-the-badge&logo=npm&logoColor=white&label=npm" alt="npm version">
-  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/wazuh-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
-  <img src="https://img.shields.io/badge/MCP-server-7c3aed?style=for-the-badge" alt="MCP server">
-  <img src="https://img.shields.io/badge/Wazuh-SIEM%2FXDR-3385ff?style=for-the-badge" alt="Wazuh SIEM/XDR">
-  <img src="https://img.shields.io/badge/MITRE_ATT%26CK-mapped-0f766e?style=for-the-badge" alt="MITRE ATT&CK mapped">
+  <strong>Website:</strong> <a href="https://lidless.dev/wazuh-mcp">lidless.dev/wazuh-mcp</a>
 </p>
 
 <p align="center">
-  <strong>Website:</strong> <a href="https://lidless.dev/wazuh-mcp">lidless.dev/wazuh-mcp</a>
+  <img src="https://img.shields.io/npm/v/wazuh-mcp?style=for-the-badge&logo=npm&label=npm" alt="npm version">
+  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/wazuh-mcp/ci.yml?branch=main&style=for-the-badge&label=ci" alt="CI status">
+  <img src="https://img.shields.io/badge/MCP-server-8A2BE2?style=for-the-badge" alt="MCP server">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+  <img src="https://img.shields.io/badge/Wazuh-SIEM%2FXDR-3385ff?style=for-the-badge" alt="Wazuh SIEM/XDR">
+  <img src="https://img.shields.io/badge/MITRE_ATT%26CK-mapped-0f766e?style=for-the-badge" alt="MITRE ATT&CK mapped">
 </p>
 
 wazuh-mcp is a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. It exposes your Wazuh manager and Wazuh Indexer as MCP tools so Claude, Claude Code, or any MCP-compatible client can investigate alerts, triage agents, and pull vulnerability inventory in plain language. It is read-only by design and security-first: TLS verification is on by default, sensitive fields (agent IPs, full logs, file hashes, command lines) are hidden unless you opt in per call, and attacker-controlled SIEM text is wrapped in untrusted-data markers to blunt prompt injection against the calling model.
@@ -26,6 +26,17 @@ wazuh-mcp is a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) 
 ## What it does
 
 wazuh-mcp turns a Wazuh SIEM/XDR deployment into a set of MCP tools an AI agent can call. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. It ships 28 tools, 3 resources, and 3 guided prompts over stdio. The server only ever reads from Wazuh: the sole writes it performs are JWT authentication against the manager and `_search` queries against the indexer.
+
+## Installation
+
+The quickstart below runs the published npm package with `npx`, which is the recommended path. To work from source instead:
+
+```bash
+git clone https://github.com/lidless-labs/wazuh-mcp.git
+cd wazuh-mcp
+npm install
+npm run build
+```
 
 ## Quickstart
 
@@ -58,98 +69,6 @@ Prefer a global install?
 npm install -g wazuh-mcp
 # then use "command": "wazuh-mcp" instead of the npx invocation above
 ```
-
-## Features
-
-- **28 MCP Tools** - Agents, alerts, vulnerabilities, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, manager, and diagnostics
-- **3 MCP Resources** - Pre-built views for agents, recent alerts, and rule summaries
-- **3 MCP Prompts** - Alert investigation, agent health checks, and security overviews
-- **Read-only by design** - The only writes are JWT auth and indexer `_search`; no tool changes Wazuh state
-- **Secure by default** - TLS verification on, sensitive fields redacted unless opted in, untrusted SIEM content delimited, every error sanitized before it reaches the client
-- **JWT Authentication** - Automatic token management with refresh on expiry
-- **Full Compliance Mapping** - PCI-DSS, GDPR, HIPAA, NIST 800-53, MITRE ATT&CK
-- **Pagination** - All list endpoints support limit/offset pagination
-- **Type-Safe** - Full TypeScript with strict mode and Zod schema validation
-
-## Prerequisites
-
-- Node.js 20+
-<!-- content-guard: allow port-reference -->
-- A running Wazuh manager with API access (default port 55000)
-- Wazuh API credentials (username/password)
-- (Optional) Wazuh Indexer (OpenSearch) access for alert queries
-
-## Installation
-
-The quickstart above runs the published npm package with `npx`, which is the recommended path. To work from source instead:
-
-```bash
-git clone https://github.com/lidless-labs/wazuh-mcp.git
-cd wazuh-mcp
-npm install
-npm run build
-```
-
-## Configuration
-
-Set the following environment variables:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://192.0.2.2:55000`) |
-| `WAZUH_USERNAME` | Yes | - | API username |
-| `WAZUH_PASSWORD` | Yes | - | API password |
-| `WAZUH_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
-| `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
-| `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
-| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. |
-
-Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
-
-### Wazuh Indexer (OpenSearch) - Required for Alerts and Vulnerabilities
-
-Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSearch), not the REST API. To enable alert tools (`get_alerts`, `get_alert`, `search_alerts`), vulnerability tools (`list_vulnerabilities`, `search_vulnerabilities`), and the `wazuh://alerts/recent` resource, configure the indexer connection:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://192.0.2.2:9200`) |
-| `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
-| `WAZUH_INDEXER_PASSWORD` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer password. The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. |
-| `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
-| `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
-
-If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
-
-SSL certificate verification is enabled by default (secure by default). When either SSL verification setting is explicitly set to `false`, the server prints a startup warning to stderr. TLS verification is disabled only for that configured Wazuh client.
-
-### Sensitive Output Defaults
-
-Several tools return minimized output by default to avoid exposing raw logs, IPs, command lines, hashes, or raw event payloads unless requested:
-
-| Tool | Hidden by default | Opt-in field |
-|------|-------------------|--------------|
-| `list_agents`, `get_agent`, `get_group_agents` | Agent IP details | `include_ip: true` |
-| `get_alerts`, `search_alerts` | `full_log` | `include_full_log: true` |
-| `get_alert` | `full_log`, raw `data` | `include_full_log: true`, `include_raw_data: true` |
-| `list_vulnerabilities`, `search_vulnerabilities` | Vulnerability descriptions | `include_description: true` |
-| `get_agent_processes` | Process command lines and arguments | `include_command: true` |
-| `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
-| `get_manager_logs` | Full log descriptions | `include_description: true` |
-| `get_manager_config` | Secret-like config values | `include_sensitive_config: true` (only honored when the server-side `WAZUH_ALLOW_SENSITIVE_CONFIG` flag is enabled; otherwise always redacted) |
-
-### Untrusted SIEM Content
-
-Alert and log fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) controls the text that lands in `full_log`, alert `rule_description`, raw event `data`, and manager log descriptions. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
-
-### Input Validation
-
-Tool inputs are validated before requests are sent to Wazuh. Pagination is bounded, search text is length-limited, sort fields are enumerated per tool, and path-oriented identifiers such as agent IDs, alert IDs, group IDs, and SCA policy IDs reject unsupported characters.
-
-Paginated tool responses include a `pagination` object with `total`, `limit`, `offset`, and `has_more` fields while preserving the existing top-level `total`, `limit`, and `offset` fields.
-
-Tool responses are capped by `WAZUH_MCP_MAX_RESPONSE_BYTES`. Oversized responses return valid JSON with `output.response_truncated`, byte counts, and a preview instead of flooding the MCP client.
-
-Transient manager `GET` requests and indexer search/readiness requests retry briefly on `429`, `502`, `503`, `504`, and common transient network reset or timeout errors.
 
 ## Usage
 
@@ -371,6 +290,87 @@ All 28 tools are read-only.
 | `list_decoders` | List log decoders with optional name filtering |
 | `get_wazuh_version` | Get Wazuh manager version and API info |
 | `diagnose_wazuh_connection` | Check sanitized configuration, URL/TLS settings, manager auth/version, and indexer readiness |
+
+## Configuration
+
+Set the following environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://192.0.2.2:55000`) |
+| `WAZUH_USERNAME` | Yes | - | API username |
+| `WAZUH_PASSWORD` | Yes | - | API password |
+| `WAZUH_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
+| `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
+| `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
+| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. |
+
+Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
+
+### Wazuh Indexer (OpenSearch) - Required for Alerts and Vulnerabilities
+
+Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSearch), not the REST API. To enable alert tools (`get_alerts`, `get_alert`, `search_alerts`), vulnerability tools (`list_vulnerabilities`, `search_vulnerabilities`), and the `wazuh://alerts/recent` resource, configure the indexer connection:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://192.0.2.2:9200`) |
+| `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
+| `WAZUH_INDEXER_PASSWORD` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer password. The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. |
+| `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
+| `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
+
+If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
+
+SSL certificate verification is enabled by default (secure by default). When either SSL verification setting is explicitly set to `false`, the server prints a startup warning to stderr. TLS verification is disabled only for that configured Wazuh client.
+
+### Sensitive Output Defaults
+
+Several tools return minimized output by default to avoid exposing raw logs, IPs, command lines, hashes, or raw event payloads unless requested:
+
+| Tool | Hidden by default | Opt-in field |
+|------|-------------------|--------------|
+| `list_agents`, `get_agent`, `get_group_agents` | Agent IP details | `include_ip: true` |
+| `get_alerts`, `search_alerts` | `full_log` | `include_full_log: true` |
+| `get_alert` | `full_log`, raw `data` | `include_full_log: true`, `include_raw_data: true` |
+| `list_vulnerabilities`, `search_vulnerabilities` | Vulnerability descriptions | `include_description: true` |
+| `get_agent_processes` | Process command lines and arguments | `include_command: true` |
+| `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
+| `get_manager_logs` | Full log descriptions | `include_description: true` |
+| `get_manager_config` | Secret-like config values | `include_sensitive_config: true` (only honored when the server-side `WAZUH_ALLOW_SENSITIVE_CONFIG` flag is enabled; otherwise always redacted) |
+
+### Untrusted SIEM Content
+
+Alert and log fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) controls the text that lands in `full_log`, alert `rule_description`, raw event `data`, and manager log descriptions. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
+
+### Input Validation
+
+Tool inputs are validated before requests are sent to Wazuh. Pagination is bounded, search text is length-limited, sort fields are enumerated per tool, and path-oriented identifiers such as agent IDs, alert IDs, group IDs, and SCA policy IDs reject unsupported characters.
+
+Paginated tool responses include a `pagination` object with `total`, `limit`, `offset`, and `has_more` fields while preserving the existing top-level `total`, `limit`, and `offset` fields.
+
+Tool responses are capped by `WAZUH_MCP_MAX_RESPONSE_BYTES`. Oversized responses return valid JSON with `output.response_truncated`, byte counts, and a preview instead of flooding the MCP client.
+
+Transient manager `GET` requests and indexer search/readiness requests retry briefly on `429`, `502`, `503`, `504`, and common transient network reset or timeout errors.
+
+## Features
+
+- **28 MCP Tools** - Agents, alerts, vulnerabilities, rules, decoders, SCA, syscollector, FIM, rootcheck, groups, manager, and diagnostics
+- **3 MCP Resources** - Pre-built views for agents, recent alerts, and rule summaries
+- **3 MCP Prompts** - Alert investigation, agent health checks, and security overviews
+- **Read-only by design** - The only writes are JWT auth and indexer `_search`; no tool changes Wazuh state
+- **Secure by default** - TLS verification on, sensitive fields redacted unless opted in, untrusted SIEM content delimited, every error sanitized before it reaches the client
+- **JWT Authentication** - Automatic token management with refresh on expiry
+- **Full Compliance Mapping** - PCI-DSS, GDPR, HIPAA, NIST 800-53, MITRE ATT&CK
+- **Pagination** - All list endpoints support limit/offset pagination
+- **Type-Safe** - Full TypeScript with strict mode and Zod schema validation
+
+## Prerequisites
+
+- Node.js 20+
+<!-- content-guard: allow port-reference -->
+- A running Wazuh manager with API access (default port 55000)
+- Wazuh API credentials (username/password)
+- (Optional) Wazuh Indexer (OpenSearch) access for alert queries
 
 ## MCP Resources
 
