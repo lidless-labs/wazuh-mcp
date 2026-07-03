@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/wazuh-mcp-banner.jpg" alt="wazuh-mcp banner" width="900">
+  <img src="docs/assets/wazuh-mcp-social-preview.jpg" alt="wazuh-mcp banner" width="900">
 </p>
 
 <h1 align="center">wazuh-mcp</h1>
@@ -13,8 +13,8 @@
 </p>
 
 <p align="center">
-  <img src="https://shieldcn.dev/npm/wazuh-mcp.svg" alt="npm version">
   <img src="https://shieldcn.dev/github/ci/lidless-labs/wazuh-mcp.svg?branch=main&workflow=ci.yml" alt="CI status">
+  <img src="https://shieldcn.dev/npm/wazuh-mcp.svg" alt="npm version">
   <img src="https://shieldcn.dev/badge/MCP-server-8A2BE2.svg" alt="MCP server">
   <img src="https://shieldcn.dev/badge/license-MIT-green.svg" alt="MIT License">
   <img src="https://shieldcn.dev/badge/Wazuh-SIEM%2FXDR-3385ff.svg" alt="Wazuh SIEM/XDR">
