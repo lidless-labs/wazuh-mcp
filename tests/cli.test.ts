@@ -36,9 +36,9 @@ describe("wazuhctrl CLI", () => {
     expect(HELP).toContain("wazuhctrl - read-only Wazuh SIEM/XDR control CLI");
     expect(HELP).toContain("alias: wazuhctl");
     expect(packageJson.bin).toMatchObject({
-      wazuhctrl: "dist/cli.js",
-      wazuhctl: "dist/cli.js",
-      "wazuh-mcp": "dist/mcp-bin.js",
+      wazuhctrl: "./dist/cli.js",
+      wazuhctl: "./dist/cli.js",
+      "wazuh-mcp": "./dist/mcp-bin.js",
     });
   });
 
