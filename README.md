@@ -5,7 +5,7 @@
 <h1 align="center">wazuh-mcp</h1>
 
 <p align="center">
-  <strong>An MCP server that lets an AI client query your Wazuh SIEM/XDR: alerts, agents, vulnerabilities, rules, and more, read-only.</strong>
+  <strong>A read-only Wazuh SIEM/XDR control CLI and MCP adapter for alerts, agents, vulnerabilities, rules, and more.</strong>
 </p>
 
 <p align="center">
@@ -21,11 +21,11 @@
   <img src="https://shieldcn.dev/badge/MITRE_ATT%26CK-mapped-0f766e.svg" alt="MITRE ATT&CK mapped">
 </p>
 
-wazuh-mcp is a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. It exposes your Wazuh manager and Wazuh Indexer as MCP tools so Claude, Claude Code, or any MCP-compatible client can investigate alerts, triage agents, and pull vulnerability inventory in plain language. It is read-only by design and security-first: TLS verification is on by default, sensitive fields (agent IPs, full logs, file hashes, command lines) are hidden unless you opt in per call, and attacker-controlled SIEM text is wrapped in untrusted-data markers to blunt prompt injection against the calling model.
+wazuhctrl is a read-only control CLI for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. The same package ships `wazuh-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) adapter that exposes your Wazuh manager and Wazuh Indexer as MCP tools so Claude, Claude Code, or any MCP-compatible client can investigate alerts, triage agents, and pull vulnerability inventory in plain language. It is read-only by design and security-first: TLS verification is on by default, sensitive fields (agent IPs, full logs, file hashes, command lines) are hidden unless you opt in per call, and attacker-controlled SIEM text is wrapped in untrusted-data markers to blunt prompt injection against the calling model.
 
 ## What it does
 
-wazuh-mcp turns a Wazuh SIEM/XDR deployment into a set of MCP tools an AI agent can call. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. It ships 28 tools, 3 resources, and 3 guided prompts over stdio. The server only ever reads from Wazuh: the sole writes it performs are JWT authentication against the manager and `_search` queries against the indexer.
+wazuhctrl and wazuh-mcp turn a Wazuh SIEM/XDR deployment into typed operator surfaces. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. The CLI starts with status, agent inventory, and diagnostics for shells, cron, and CI. The package ships 28 MCP tools, 3 resources, and 3 guided prompts over stdio. Both surfaces only read from Wazuh: the sole writes they perform are JWT authentication against the manager and `_search` queries against the indexer.
 
 ## Installation
 
@@ -69,6 +69,20 @@ Prefer a global install?
 npm install -g wazuh-mcp
 # then use "command": "wazuh-mcp" instead of the npx invocation above
 ```
+
+## CLI
+
+The package ships `wazuhctrl` for shells, cron, and CI. Compatibility alias `wazuhctl` points at the same binary, and `wazuh-mcp` remains the MCP stdio adapter.
+
+```bash
+wazuhctrl status --json
+wazuhctrl agents list --limit 20
+wazuhctrl diagnostics
+wazuhctrl diagnostics --no-connectivity
+wazuhctrl mcp
+```
+
+`wazuhctrl` reads the same environment as the MCP adapter: `WAZUH_URL`, `WAZUH_USERNAME`, `WAZUH_PASSWORD`, optional `WAZUH_INDEXER_URL`, and optional indexer credentials. Agent IP addresses stay hidden unless a command explicitly requests them.
 
 ## Usage
 
@@ -148,12 +162,12 @@ openclaw mcp set wazuh '{
 }'
 ```
 
-Or, when running from a source checkout, point `command`/`args` at the built `dist/index.js`:
+Or, when running from a source checkout, point `command`/`args` at the built `dist/mcp-bin.js`:
 
 ```bash
 openclaw mcp set wazuh '{
   "command": "node",
-  "args": ["/absolute/path/to/wazuh-mcp/dist/index.js"],
+  "args": ["/absolute/path/to/wazuh-mcp/dist/mcp-bin.js"],
   "env": {
     "WAZUH_URL": "https://your-wazuh-manager:55000",
     "WAZUH_USERNAME": "wazuh-wui",
@@ -458,7 +472,9 @@ Tests use mocked Wazuh API responses - no live Wazuh instance needed.
 ```
 wazuh-mcp/
 ├── src/
-│   ├── index.ts           # MCP server entry point
+│   ├── mcp-bin.ts         # MCP server entry point
+│   ├── cli.ts             # wazuhctrl command entry point
+│   ├── mcp-server.ts      # shared MCP server factory
 │   ├── config.ts          # Environment configuration
 │   ├── client.ts          # Wazuh REST API client (JWT auth)
 │   ├── indexer-client.ts  # Wazuh Indexer (OpenSearch) client
