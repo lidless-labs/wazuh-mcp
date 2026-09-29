@@ -117,3 +117,21 @@ export function sortSchema(
 ): z.ZodType<string | undefined> {
   return z.enum(values).optional().describe(description);
 }
+
+// OpenSearch rejects from + size beyond index.max_result_window (default
+// 10000), so indexer-backed tools use a tighter offset bound plus a combined
+// check. Manager API tools keep offsetSchema.
+export const INDEXER_MAX_RESULT_WINDOW = 10_000;
+
+export const indexerOffsetSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(INDEXER_MAX_RESULT_WINDOW - 1)
+  .default(0)
+  .describe(`Pagination offset (offset + limit must not exceed ${INDEXER_MAX_RESULT_WINDOW})`);
+
+export function indexerWindowError(limit: number, offset: number): string | undefined {
+  if (offset + limit <= INDEXER_MAX_RESULT_WINDOW) return undefined;
+  return `offset + limit must not exceed ${INDEXER_MAX_RESULT_WINDOW} (the indexer's max result window). Narrow the query with filters or a time range instead of paging deeper.`;
+}

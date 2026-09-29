@@ -26,6 +26,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read buffer (default 8 MiB, overridable via
   `WAZUH_MCP_MAX_STDIO_BUFFER_BYTES`); oversized client messages make the
   transport error and close.
+- Fence endpoint-reported inventory strings in `<untrusted_siem_data>`
+  markers with an `output.untrusted_data_note` and a warning in each tool
+  description: alert `agent_name`, `location`, and `decoder` in every alert
+  tool; agent name and OS fields in `list_agents`, `get_agent`,
+  `get_agent_stats`, and `get_group_agents`; all syscollector tools (OS,
+  package name/version/architecture/description/vendor, process
+  name/euser/cmd/argvs, port process names, interface names, hotfixes); FIM
+  paths, `uname`, and `gname`; rootcheck `event`; SCA policy description and
+  check description, rationale, remediation, command, and reason; and
+  vulnerability package, agent, OS, and description fields. Also agent
+  `version`, agent stats `disk`, interface `ipv4`/`ipv6`, SCA policy name and
+  check title/condition/references/compliance, and the `wazuh://agents`
+  resource. Keys of raw alert `data` are fenced as well, since they come from
+  the log.
+- `WazuhIndexerClient` rejects `size`/`from` outside the 10000-hit result
+  window itself, not only in the MCP tool schemas.
+- Validate `WAZUH_URL` and `WAZUH_INDEXER_URL` at startup: reject non-http(s)
+  schemes, embedded credentials, query strings, and fragments with a clear
+  error.
+- Reject plain `http://` service URLs unless `WAZUH_ALLOW_INSECURE_HTTP=true`,
+  and print a stderr warning at startup when plaintext is in use.
+- Add `WAZUH_CA_FILE` and `WAZUH_INDEXER_CA_FILE` to trust a private CA
+  (PEM) instead of disabling verification; unreadable files fail at startup.
+- `diagnose_wazuh_connection` reports service URLs as origin only
+  (`scheme://host:port`), never path, query, or fragment.
+
+### Changed
+- Indexer searches send `track_total_hits: 10000` instead of `true` plus a
+  `timeout: "30s"`; when the real hit count exceeds 10000, pagination metadata
+  (and the `wazuh://alerts/recent` resource) reports
+  `total_is_lower_bound: true`.
+- Alert and vulnerability tools cap `offset` at 9999 and reject
+  `offset + limit > 10000` (OpenSearch's default `max_result_window`) before
+  querying. Manager API tools keep the existing offset bound.
+- Concurrent manager requests that need a token, or that hit a 401 together,
+  now share one in-flight authentication instead of each posting credentials.
+- The truncated response envelope now always fits within
+  `WAZUH_MCP_MAX_RESPONSE_BYTES` (the preview is sized after subtracting the
+  envelope overhead), and caps below 1024 bytes are raised to 1024.
+- `.env.example` now defaults to `WAZUH_VERIFY_SSL=true` and
+  `WAZUH_INDEXER_VERIFY_SSL=true`, with the `false` opt-outs commented out.
 
 ### Documentation
 - OSS adoption upgrade: README now leads with a what/why/how summary, a

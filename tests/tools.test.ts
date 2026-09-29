@@ -47,6 +47,10 @@ function captureTools(
   return tools;
 }
 
+function fenced(value: string): string {
+  return `<untrusted_siem_data>${value}</untrusted_siem_data>`;
+}
+
 function parseToolResult(result: {
   content: Array<{ type: string; text: string }>;
 }): unknown {
@@ -150,8 +154,8 @@ describe("Agent Tools", () => {
       expect(data).toHaveProperty("agents");
       expect(data).toHaveProperty("total", 1);
       const agents = data.agents as Array<Record<string, unknown>>;
-      expect(agents[0].name).toBe("server-1");
-      expect(agents[0].os_name).toBe("Ubuntu");
+      expect(agents[0].name).toBe(fenced("server-1"));
+      expect(agents[0].os_name).toBe(fenced("Ubuntu"));
       expect(agents[0].ip).toBeUndefined();
       expect((data.output as Record<string, unknown>).ip_included).toBe(false);
     });
@@ -274,7 +278,7 @@ describe("Agent Tools", () => {
       const data = parseToolResult(result) as Record<string, unknown>;
 
       expect(data.id).toBe("001");
-      expect(data.os_name).toBe("CentOS");
+      expect(data.os_name).toBe(fenced("CentOS"));
       expect(data.ip).toBeUndefined();
       expect(data.register_ip).toBeUndefined();
     });
@@ -370,7 +374,7 @@ describe("Agent Tools", () => {
       const data = parseToolResult(result) as Record<string, unknown>;
 
       expect(data.agent_id).toBe("001");
-      expect(data.agent_name).toBe("server-1");
+      expect(data.agent_name).toBe(fenced("server-1"));
       expect(data.cpu).toBeDefined();
       expect(data.memory).toBeDefined();
     });
@@ -440,7 +444,7 @@ describe("Alert Tools", () => {
       const alerts = data.alerts as Array<Record<string, unknown>>;
       expect(alerts[0].rule_id).toBe("5710");
       expect(alerts[0].rule_level).toBe(5);
-      expect(alerts[0].agent_name).toBe("server-1");
+      expect(alerts[0].agent_name).toBe(fenced("server-1"));
       expect(alerts[0].rule_description).toBe(
         "<untrusted_siem_data>sshd: attempt to login using a denied user</untrusted_siem_data>"
       );
@@ -579,8 +583,9 @@ describe("Alert Tools", () => {
       expect(data.full_log).toBe(
         "<untrusted_siem_data>sensitive raw alert log</untrusted_siem_data>"
       );
+      // Raw data keys come from the log, so they are fenced too.
       expect(data.data).toEqual({
-        user: "<untrusted_siem_data>root</untrusted_siem_data>",
+        "<untrusted_siem_data>user</untrusted_siem_data>": "<untrusted_siem_data>root</untrusted_siem_data>",
       });
     });
 
@@ -802,7 +807,7 @@ describe("Vulnerability Tools", () => {
       })
     );
     expect(vulnerabilities[0].cve_id).toBe("CVE-2020-14393");
-    expect(vulnerabilities[0].package_name).toBe("perl-DBI");
+    expect(vulnerabilities[0].package_name).toBe(fenced("perl-DBI"));
     expect(vulnerabilities[0].description).toBeUndefined();
   });
 
@@ -835,7 +840,7 @@ describe("Vulnerability Tools", () => {
       0,
       expect.objectContaining({ search: "perl" })
     );
-    expect(vulnerabilities[0].description).toBe("Sensitive vulnerability description");
+    expect(vulnerabilities[0].description).toBe(fenced("Sensitive vulnerability description"));
     expect((data.output as Record<string, unknown>).description_included).toBe(true);
   });
 });
@@ -1288,7 +1293,8 @@ describe("Manager Tools", () => {
     };
 
     expect(data.output.response_truncated).toBe(true);
-    expect(data.output.max_response_bytes).toBe(200);
+    // Caps below 1024 bytes are raised to the 1024-byte floor.
+    expect(data.output.max_response_bytes).toBe(1024);
     expect(data.preview).toContain("blob");
   });
 });
@@ -1362,8 +1368,8 @@ describe("Syscollector Tools", () => {
     const data = parseToolResult(result) as Record<string, unknown>;
     const processes = data.processes as Array<Record<string, unknown>>;
 
-    expect(processes[0].cmd).toBe("/bin/bash -lc secret");
-    expect(processes[0].argvs).toEqual(["bash", "-lc", "secret"]);
+    expect(processes[0].cmd).toBe(fenced("/bin/bash -lc secret"));
+    expect(processes[0].argvs).toEqual([fenced("bash"), fenced("-lc"), fenced("secret")]);
   });
 });
 

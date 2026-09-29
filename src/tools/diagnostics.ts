@@ -35,14 +35,13 @@ export interface WazuhDiagnosticResult {
   checks: CheckResult[];
 }
 
-function sanitizeUrl(rawUrl: string): string {
+// Report only scheme://host:port. Paths, queries, fragments, and userinfo can
+// carry tokens or internal routing details the model does not need.
+function urlOrigin(rawUrl: string): string {
   try {
-    const url = new URL(rawUrl);
-    if (url.username) url.username = "redacted";
-    if (url.password) url.password = "redacted";
-    return url.toString();
+    return new URL(rawUrl).origin;
   } catch {
-    return rawUrl.replace(/\/\/([^:@/]+):([^@/]+)@/, "//redacted:redacted@");
+    return "[invalid URL]";
   }
 }
 
@@ -209,14 +208,14 @@ export async function runWazuhDiagnostics(
   return {
     status: combineStatus(checks),
     configuration: {
-      manager_url: sanitizeUrl(config.url),
+      manager_url: urlOrigin(config.url),
       manager_verify_ssl: config.verifySsl,
       timeout_ms: config.timeout,
       node_tls_reject_unauthorized: process.env.NODE_TLS_REJECT_UNAUTHORIZED ?? null,
       indexer: config.indexer
         ? {
             configured: true,
-            url: sanitizeUrl(config.indexer.url),
+            url: urlOrigin(config.indexer.url),
             verify_ssl: config.indexer.verifySsl,
             timeout_ms: config.indexer.timeout,
           }

@@ -52,7 +52,8 @@ describe("WazuhIndexerClient", () => {
       unknown
     >;
     expect(requestBody.sort).toEqual([{ timestamp: { order: "desc" } }]);
-    expect(requestBody.track_total_hits).toBe(true);
+    expect(requestBody.track_total_hits).toBe(10000);
+    expect(requestBody.timeout).toBe("30s");
   });
 
   it("should support ascending timestamp sort for recent alerts", async () => {
@@ -126,7 +127,8 @@ describe("WazuhIndexerClient", () => {
     const requestBody = JSON.parse(requestSpy.mock.calls[0][1]?.body as string) as {
       query: { bool: { must: unknown[] } };
       sort: unknown;
-      track_total_hits?: boolean;
+      track_total_hits?: number;
+      timeout?: string;
     };
     expect(requestSpy.mock.calls[0][0]).toBe(
       "https://indexer.example.com:9200/wazuh-states-vulnerabilities*/_search"
@@ -138,7 +140,8 @@ describe("WazuhIndexerClient", () => {
     expect(requestBody.query.bool.must).toContainEqual({
       term: { "vulnerability.severity": "Low" },
     });
-    expect(requestBody.track_total_hits).toBe(true);
+    expect(requestBody.track_total_hits).toBe(10000);
+    expect(requestBody.timeout).toBe("30s");
     expect(result.total).toBe(1);
     expect(result.vulnerabilities[0].vulnerability?.id).toBe("CVE-2020-14393");
     expect(result.vulnerabilities[0].package?.name).toBe("perl-DBI");

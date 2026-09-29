@@ -36,6 +36,19 @@ export function configureTls(config: WazuhConfig): void {
       )}. Verification is disabled only for those configured clients. Use this only for trusted self-signed lab environments.`
     );
   }
+
+  const plaintextTargets: string[] = [];
+  // URL.protocol is lowercased, so HTTP:// is caught too.
+  if (new URL(config.url).protocol === "http:") plaintextTargets.push("Wazuh manager");
+  if (config.indexer && new URL(config.indexer.url).protocol === "http:") plaintextTargets.push("Wazuh Indexer");
+
+  if (plaintextTargets.length > 0) {
+    console.error(
+      `Warning: WAZUH_ALLOW_INSECURE_HTTP is enabled and plain http:// is in use for ${plaintextTargets.join(
+        " and "
+      )}. Credentials and SIEM data travel unencrypted. Use this only on a trusted lab network.`
+    );
+  }
 }
 
 export interface WazuhServerDeps {
