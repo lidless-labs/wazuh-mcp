@@ -40,7 +40,7 @@ For changes to the publish payload (`dist`, `README.md`, `LICENSE`, `package.jso
 npm run pack:check
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, build, test, `npm audit --omit=dev`, and pack:check on Node 20 and 22. Match it locally before declaring done. Report actual results; if anything fails, report the failure verbatim and do not claim success.
+CI (`.github/workflows/ci.yml`) runs typecheck, build, test, `npm audit --omit=dev`, and pack:check on Node 22 and 24. Match it locally before declaring done. Report actual results; if anything fails, report the failure verbatim and do not claim success.
 
 ## Local dev
 

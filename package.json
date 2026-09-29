@@ -39,7 +39,7 @@
     "url": "https://github.com/lidless-labs/wazuh-mcp/issues"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

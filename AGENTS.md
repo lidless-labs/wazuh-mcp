@@ -35,7 +35,7 @@ Report actual results. If anything fails, report the failure verbatim and do not
 - `npm run typecheck` is `tsc --noEmit`.
 - `npm run build` runs tsup.
 - `npm run pack:check` verifies the publish payload (`dist`, `README.md`, `LICENSE`, `package.json` only).
-- CI (`.github/workflows/ci.yml`) runs typecheck, build, test, `npm audit --omit=dev`, and pack:check on Node 20 and 22, then publishes to npm on `v*` tags. Match CI locally before declaring done.
+- CI (`.github/workflows/ci.yml`) runs typecheck, build, test, `npm audit --omit=dev`, and pack:check on Node 22 and 24. npm publishing runs from `.github/workflows/publish.yml` on `v*` tags. Match CI locally before declaring done.
 
 ## Rules by Trigger
 - Touching auth, TLS, or config parsing: keep secure defaults intact. TLS verification stays on by default; sensitive fields (agent IPs, full logs, hashes, command lines) stay hidden unless opted in per call; `get_manager_config` redaction stays enforced server side via `WAZUH_ALLOW_SENSITIVE_CONFIG`.
@@ -43,7 +43,6 @@ Report actual results. If anything fails, report the failure verbatim and do not
 - Touching tool output: responses are size-capped by `WAZUH_MCP_MAX_RESPONSE_BYTES` (default 250000). Oversized output must become a truncated JSON preview with `response_truncated` metadata, never an error.
 - Adding alert or vulnerability features: Wazuh 4.x serves those from the indexer, not the manager REST API. Manager-only setups legitimately lack them; preserve the graceful configuration message.
 - Adding files in the repo root: `.gitignore` ignores `*.js` and `*.d.ts` everywhere except `tsup.config.ts` and `vitest.config.ts`. Verify new files are actually tracked with `git status`.
-- Tempted to run `scripts/proxmox_install.sh`: do not. It provisions an LXC and must run on a Proxmox VE host, never locally.
 
 ## Memory Handoff
 At the end of any substantial task, write a handoff note to `.claude/memory-handoffs/` using that directory's `TEMPLATE.md`.
