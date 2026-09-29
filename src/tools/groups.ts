@@ -73,7 +73,7 @@ export function registerGroupTools(
                 status: agent.status,
                 os_name: markUntrusted(agent.os?.name),
                 os_platform: markUntrusted(agent.os?.platform),
-                version: agent.version,
+                version: markUntrusted(agent.version),
                 last_keepalive: agent.lastKeepAlive,
               },
               "ip",

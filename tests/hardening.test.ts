@@ -12,6 +12,7 @@ import { WazuhIndexerClient } from "../src/indexer-client.js";
 import { configureTls } from "../src/mcp-server.js";
 import { registerAgentTools } from "../src/tools/agents.js";
 import { registerAlertTools } from "../src/tools/alerts.js";
+import { registerResources } from "../src/resources.js";
 import { runWazuhDiagnostics } from "../src/tools/diagnostics.js";
 import { registerGroupTools } from "../src/tools/groups.js";
 import { UNTRUSTED_DATA_NOTE, formatToolResponse, markUntrusted } from "../src/tools/output.js";
@@ -90,12 +91,13 @@ describe("endpoint inventory fencing", () => {
     name: EVIL,
     status: "active",
     os: { name: EVIL, version: EVIL, platform: EVIL },
-    ip: "10.0.0.1",
+    version: EVIL,
+    ip: "192.0.2.1",
   };
   const client = {
     getAgents: vi.fn().mockResolvedValue(paged([agent])),
     getAgent: vi.fn().mockResolvedValue(paged([agent])),
-    getAgentStats: vi.fn().mockResolvedValue(paged([{ cpu: 1 }])),
+    getAgentStats: vi.fn().mockResolvedValue(paged([{ cpu: 1, disk: [{ path: EVIL }] }])),
     getGroupAgents: vi.fn().mockResolvedValue(paged([agent])),
     getAgentOs: vi.fn().mockResolvedValue(paged([{ os: { name: EVIL }, hostname: EVIL }])),
     getAgentPackages: vi.fn().mockResolvedValue(
@@ -105,16 +107,19 @@ describe("endpoint inventory fencing", () => {
       paged([{ pid: "1", name: EVIL, euser: EVIL, cmd: EVIL, argvs: [EVIL] }])
     ),
     getAgentPorts: vi.fn().mockResolvedValue(paged([{ protocol: "tcp", local_port: 22, process: EVIL }])),
-    getAgentNetwork: vi.fn().mockResolvedValue(paged([{ name: EVIL, type: "ethernet" }])),
+    getAgentNetwork: vi.fn().mockResolvedValue(paged([{ name: EVIL, type: "ethernet", ipv4: [{ address: EVIL }], ipv6: [EVIL] }])),
     getAgentHotfixes: vi.fn().mockResolvedValue(paged([{ hotfix: EVIL }])),
     getFimFiles: vi.fn().mockResolvedValue(paged([{ file: EVIL, uname: EVIL, gname: EVIL, type: "file" }])),
     getRootcheck: vi.fn().mockResolvedValue(paged([{ status: "outstanding", event: EVIL }])),
-    getScaPolicies: vi.fn().mockResolvedValue(paged([{ policy_id: "cis", name: "CIS", description: EVIL }])),
+    getScaPolicies: vi.fn().mockResolvedValue(paged([{ policy_id: "cis", name: EVIL, description: EVIL }])),
     getScaChecks: vi.fn().mockResolvedValue(
       paged([
         {
           id: 1,
-          title: "t",
+          title: EVIL,
+          condition: EVIL,
+          references: EVIL,
+          compliance: [{ key: "cis", value: EVIL }],
           description: EVIL,
           rationale: EVIL,
           remediation: EVIL,
@@ -138,6 +143,7 @@ describe("endpoint inventory fencing", () => {
       expect(data.agents[0].name).toBe(FENCED);
       expect(data.agents[0].os_name).toBe(FENCED);
       expect(data.agents[0].os_platform).toBe(FENCED);
+      expect(data.agents[0].version).toBe(FENCED);
     }
 
     const single = await call(tools, "get_agent", { agent_id: "001" });
@@ -148,6 +154,7 @@ describe("endpoint inventory fencing", () => {
     const stats = await call(tools, "get_agent_stats", { agent_id: "001" });
     expectFencedTool(tools.get("get_agent_stats")!, stats);
     expect(stats.agent_name).toBe(FENCED);
+    expect(stats.disk).toEqual([{ path: FENCED }]);
   });
 
   it("fences every syscollector tool's endpoint-reported strings", async () => {
@@ -179,6 +186,8 @@ describe("endpoint inventory fencing", () => {
     const network = await call(tools, "get_agent_network", args);
     expectFencedTool(tools.get("get_agent_network")!, network);
     expect(network.interfaces[0].name).toBe(FENCED);
+    expect(network.interfaces[0].ipv4).toEqual([{ address: FENCED }]);
+    expect(network.interfaces[0].ipv6).toEqual([FENCED]);
 
     const hotfixes = await call(tools, "get_agent_hotfixes", args);
     expectFencedTool(tools.get("get_agent_hotfixes")!, hotfixes);
@@ -207,6 +216,7 @@ describe("endpoint inventory fencing", () => {
     const policies = await call(tools, "get_sca_policies", { agent_id: "001" });
     expectFencedTool(tools.get("get_sca_policies")!, policies);
     expect(policies.policies[0].description).toBe(FENCED);
+    expect(policies.policies[0].name).toBe(FENCED);
 
     const checks = await call(tools, "get_sca_checks", {
       agent_id: "001",
@@ -215,10 +225,11 @@ describe("endpoint inventory fencing", () => {
       offset: 0,
     });
     expectFencedTool(tools.get("get_sca_checks")!, checks);
-    for (const field of ["description", "rationale", "remediation", "reason"]) {
+    for (const field of ["title", "condition", "references", "description", "rationale", "remediation", "reason"]) {
       expect(checks.checks[0][field]).toBe(FENCED);
     }
     expect(checks.checks[0].command).toEqual([FENCED]);
+    expect(checks.checks[0].compliance).toEqual([{ key: markUntrusted("cis"), value: FENCED }]);
   });
 });
 
@@ -586,6 +597,26 @@ describe("single-flight manager authentication", () => {
     expect(apiAuthHeaders.filter((header) => header === "Bearer token-2")).toHaveLength(5);
   });
 
+  it("rejects every concurrent waiter when the shared auth fails, then retries cleanly", async () => {
+    requestSpy.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return mockResponse({}, 401);
+    });
+    const client = new WazuhClient(config);
+    const results = await Promise.allSettled(Array.from({ length: 5 }, () => client.get("/agents")));
+
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    expect(requestSpy.mock.calls.filter(([url]) => isAuth(url))).toHaveLength(1);
+
+    requestSpy.mockReset();
+    requestSpy.mockImplementation(async (url) =>
+      isAuth(url)
+        ? mockResponse({ data: { token: "ok" } })
+        : mockResponse({ data: { affected_items: [], total_affected_items: 0 } })
+    );
+    await expect(client.get("/agents")).resolves.toBeDefined();
+  });
+
   it("clears the in-flight promise after a failed auth so the next call retries", async () => {
     requestSpy.mockResolvedValueOnce(mockResponse({}, 401));
     const client = new WazuhClient(config);
@@ -619,5 +650,69 @@ describe("absolute output cap", () => {
     expect(parsed.output.max_response_bytes).toBe(cap);
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(cap);
     expect(parsed.preview.length).toBeGreaterThan(0);
+  });
+});
+
+describe("review follow-ups", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("fences agent fields in the wazuh://agents resource", async () => {
+    const handlers = new Map<string, () => Promise<{ contents: Array<{ text: string }> }>>();
+    const server = {
+      resource: (_name: string, uri: string, _meta: unknown, handler: () => Promise<{ contents: Array<{ text: string }> }>) => {
+        handlers.set(uri, handler);
+      },
+    } as unknown as McpServer;
+    const client = {
+      getAgents: vi.fn().mockResolvedValue(
+        paged([{ id: "001", name: EVIL, status: "active", os: { name: EVIL }, version: EVIL }])
+      ),
+    } as unknown as WazuhClient;
+    registerResources(server, client);
+
+    const result = await handlers.get("wazuh://agents")!();
+    const data = JSON.parse(result.contents[0].text);
+    expect(data.agents[0]).toMatchObject({ name: FENCED, os: FENCED, version: FENCED });
+    expect(data.output.untrusted_data_note).toBe(UNTRUSTED_DATA_NOTE);
+  });
+
+  it("enforces the result window inside the exported indexer client", async () => {
+    const indexer = new WazuhIndexerClient({
+      url: "https://indexer.example.com:9200",
+      username: "admin",
+      password: "secret",
+      verifySsl: true,
+      timeout: 30000,
+    });
+    requestSpy.mockReset();
+    await expect(indexer.searchAlerts({ match_all: {} }, 100, 9950)).rejects.toBeInstanceOf(RangeError);
+    await expect(indexer.searchVulnerabilities(10, -1)).rejects.toBeInstanceOf(RangeError);
+    await expect(indexer.searchAlerts({ match_all: {} }, 1.5, 0)).rejects.toBeInstanceOf(RangeError);
+    expect(requestSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses the constant note so an oversized caller note cannot break the cap", () => {
+    vi.stubEnv("WAZUH_MCP_MAX_RESPONSE_BYTES", "1024");
+    const text = formatToolResponse({
+      items: Array.from({ length: 500 }, (_, i) => `line ${i}`),
+      output: { untrusted_data_note: "n".repeat(5000) },
+    });
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(1024);
+    expect(JSON.parse(text).output.untrusted_data_note).toBe(UNTRUSTED_DATA_NOTE);
+  });
+
+  it("warns about plaintext for an uppercase HTTP:// scheme", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    configureTls({
+      url: "HTTP://wazuh.example.com:55000",
+      username: "u",
+      password: "p",
+      verifySsl: true,
+      timeout: 30000,
+    });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("plain http:// is in use for Wazuh manager"));
   });
 });

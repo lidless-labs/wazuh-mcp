@@ -190,7 +190,7 @@ export function registerAlertTools(
             include_full_log
           ),
           "data",
-          markUntrustedDeep(alert.data),
+          markUntrustedDeep(alert.data, true),
           include_raw_data
         );
         const result = {

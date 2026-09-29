@@ -38,8 +38,9 @@ export function configureTls(config: WazuhConfig): void {
   }
 
   const plaintextTargets: string[] = [];
-  if (config.url.startsWith("http://")) plaintextTargets.push("Wazuh manager");
-  if (config.indexer?.url.startsWith("http://")) plaintextTargets.push("Wazuh Indexer");
+  // URL.protocol is lowercased, so HTTP:// is caught too.
+  if (new URL(config.url).protocol === "http:") plaintextTargets.push("Wazuh manager");
+  if (config.indexer && new URL(config.indexer.url).protocol === "http:") plaintextTargets.push("Wazuh Indexer");
 
   if (plaintextTargets.length > 0) {
     console.error(

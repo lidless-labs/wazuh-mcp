@@ -31,6 +31,15 @@ interface OpenSearchResponse {
 // reported total is a lower bound (hits.total.relation === "gte").
 const TRACK_TOTAL_HITS_CAP = 10_000;
 const SEARCH_TIMEOUT = "30s";
+const MAX_RESULT_WINDOW = 10_000;
+
+// The MCP schemas already enforce this, but the client is exported as a
+// library, so check again before building a query.
+function assertResultWindow(size: number, from: number): void {
+  if (!Number.isInteger(size) || !Number.isInteger(from) || size < 0 || from < 0 || size + from > MAX_RESULT_WINDOW) {
+    throw new RangeError(`size and from must be non-negative integers with size + from <= ${MAX_RESULT_WINDOW}`);
+  }
+}
 
 interface AlertFilters {
   level?: number;
@@ -306,6 +315,7 @@ export class WazuhIndexerClient {
     from: number,
     sortOrder: "asc" | "desc" = "desc"
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
+    assertResultWindow(size, from);
     const body = {
       query,
       size,
@@ -409,6 +419,7 @@ export class WazuhIndexerClient {
     offset: number,
     filters: VulnerabilityFilters = {}
   ): Promise<{ vulnerabilities: WazuhVulnerability[]; total: number; totalIsLowerBound: boolean }> {
+    assertResultWindow(limit, offset);
     const must: unknown[] = [];
 
     if (filters.cve_id) {

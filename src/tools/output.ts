@@ -66,16 +66,17 @@ export function markUntrusted(value: string | undefined): string | undefined {
   return `${UNTRUSTED_OPEN}${escapeUntrusted(value)}${UNTRUSTED_CLOSE}`;
 }
 
-export function markUntrustedDeep(value: unknown): unknown {
+// Keys are always escaped. Set fenceKeys when the keys themselves come from
+// the monitored host (raw alert data, where Wazuh's JSON decoder copies them
+// from the log); keys from Wazuh's own API schema stay readable.
+export function markUntrustedDeep(value: unknown, fenceKeys = false): unknown {
   if (typeof value === "string") return markUntrusted(value);
-  if (Array.isArray(value)) return value.map((item) => markUntrustedDeep(item));
+  if (Array.isArray(value)) return value.map((item) => markUntrustedDeep(item, fenceKeys));
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      // Keys are attacker-controlled too (Wazuh's JSON decoder copies them
-      // from the log), so escape them as well.
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-        escapeUntrusted(key),
-        markUntrustedDeep(entry),
+        fenceKeys ? markUntrusted(key) : escapeUntrusted(key),
+        markUntrustedDeep(entry, fenceKeys),
       ])
     );
   }
@@ -126,8 +127,9 @@ function truncateUtf8(text: string, maxBytes: number): string {
 // carry it into the envelope.
 function untrustedNoteOf(value: unknown): { untrusted_data_note?: string } {
   const output = (value as { output?: { untrusted_data_note?: unknown } } | null)?.output;
-  const note = output?.untrusted_data_note;
-  return typeof note === "string" ? { untrusted_data_note: note } : {};
+  // Emit the known constant, never the caller's value, so the envelope size
+  // stays bounded.
+  return output?.untrusted_data_note === undefined ? {} : { untrusted_data_note: UNTRUSTED_DATA_NOTE };
 }
 
 export function formatToolResponse(value: unknown): string {

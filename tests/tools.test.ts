@@ -583,8 +583,9 @@ describe("Alert Tools", () => {
       expect(data.full_log).toBe(
         "<untrusted_siem_data>sensitive raw alert log</untrusted_siem_data>"
       );
+      // Raw data keys come from the log, so they are fenced too.
       expect(data.data).toEqual({
-        user: "<untrusted_siem_data>root</untrusted_siem_data>",
+        "<untrusted_siem_data>user</untrusted_siem_data>": "<untrusted_siem_data>root</untrusted_siem_data>",
       });
     });
 

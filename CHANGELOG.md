@@ -35,7 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name/euser/cmd/argvs, port process names, interface names, hotfixes); FIM
   paths, `uname`, and `gname`; rootcheck `event`; SCA policy description and
   check description, rationale, remediation, command, and reason; and
-  vulnerability package, agent, OS, and description fields.
+  vulnerability package, agent, OS, and description fields. Also agent
+  `version`, agent stats `disk`, interface `ipv4`/`ipv6`, SCA policy name and
+  check title/condition/references/compliance, and the `wazuh://agents`
+  resource. Keys of raw alert `data` are fenced as well, since they come from
+  the log.
+- `WazuhIndexerClient` rejects `size`/`from` outside the 10000-hit result
+  window itself, not only in the MCP tool schemas.
 - Validate `WAZUH_URL` and `WAZUH_INDEXER_URL` at startup: reject non-http(s)
   schemes, embedded credentials, query strings, and fragments with a clear
   error.
