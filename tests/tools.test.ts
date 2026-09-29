@@ -1271,6 +1271,26 @@ describe("Manager Tools", () => {
     expect(text).toContain("[REDACTED]");
     expect((data.output as Record<string, unknown>).sensitive_config_included).toBe(false);
   });
+
+  it("should truncate a huge manager config when WAZUH_MCP_MAX_RESPONSE_BYTES is small", async () => {
+    vi.stubEnv("WAZUH_MCP_MAX_RESPONSE_BYTES", "200");
+    vi.mocked(mockClient.getManagerConfig!).mockResolvedValue({
+      data: { section: { blob: "x".repeat(5000) } },
+      error: 0,
+      message: "ok",
+    });
+
+    const handler = tools.get("get_manager_config")!;
+    const result = await handler({});
+    const data = parseToolResult(result) as {
+      output: { response_truncated: boolean; max_response_bytes: number };
+      preview: string;
+    };
+
+    expect(data.output.response_truncated).toBe(true);
+    expect(data.output.max_response_bytes).toBe(200);
+    expect(data.preview).toContain("blob");
+  });
 });
 
 describe("Syscollector Tools", () => {

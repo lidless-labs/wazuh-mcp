@@ -60,8 +60,13 @@ export class WazuhClient {
     this.timeout = config.timeout;
   }
 
+  private basicCredentials(): string {
+    return Buffer.from(`${this.username}:${this.password}`).toString("base64");
+  }
+
   private get errorSecrets(): string[] {
-    return [this.username, this.password, this.token ?? ""];
+    const basic = this.basicCredentials();
+    return [this.username, this.password, this.token ?? "", basic, `Basic ${basic}`];
   }
 
   private async sleep(ms: number): Promise<void> {
@@ -121,9 +126,7 @@ export class WazuhClient {
   }
 
   async authenticate(): Promise<string> {
-    const credentials = Buffer.from(
-      `${this.username}:${this.password}`
-    ).toString("base64");
+    const credentials = this.basicCredentials();
 
     let response: HttpResponse;
     try {

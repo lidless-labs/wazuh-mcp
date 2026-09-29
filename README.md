@@ -322,6 +322,7 @@ Set the following environment variables:
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
 | `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
 | `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. |
+| `WAZUH_MCP_MAX_STDIO_BUFFER_BYTES` | No | `8388608` (8 MiB) | Maximum stdio read-buffer size in bytes. Must be a positive integer. A single client message exceeding it makes the transport error and close. |
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
 

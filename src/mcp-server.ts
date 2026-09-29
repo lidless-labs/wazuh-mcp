@@ -44,6 +44,18 @@ export interface WazuhServerDeps {
   indexerClient?: WazuhIndexerClient;
 }
 
+const DEFAULT_MAX_STDIO_BUFFER_BYTES = 8 * 1024 * 1024;
+
+// Cap the stdio read buffer so a giant client message cannot grow memory
+// without bound; oversized messages make the transport error and close.
+export function maxStdioBufferBytes(): number {
+  const raw = process.env.WAZUH_MCP_MAX_STDIO_BUFFER_BYTES;
+  if (raw === undefined) return DEFAULT_MAX_STDIO_BUFFER_BYTES;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) return DEFAULT_MAX_STDIO_BUFFER_BYTES;
+  return value;
+}
+
 export function createWazuhMcpServer(deps: WazuhServerDeps = {}): McpServer {
   const config = deps.config ?? getConfig();
   const client = deps.client ?? new WazuhClient(config);
@@ -95,7 +107,9 @@ export async function serveMcp(): Promise<void> {
   const config = getConfig();
   configureTls(config);
   const server = createWazuhMcpServer({ config });
-  const transport = new StdioServerTransport();
+  const transport = new StdioServerTransport(process.stdin, process.stdout, {
+    maxBufferSize: maxStdioBufferBytes(),
+  });
   stripSchemaFromToolList(transport);
   await server.connect(transport);
 }

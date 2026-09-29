@@ -188,6 +188,24 @@ describe("WazuhIndexerClient", () => {
     await expect(client.indexExists("missing-index*")).resolves.toBe(false);
   });
 
+  it("should redact the Basic base64 payload echoed in an upstream error body", async () => {
+    const bare = Buffer.from("admin:secret").toString("base64");
+    requestSpy.mockResolvedValueOnce(
+      mockFetchResponse({ message: `indexer blew up on ${bare} via Basic ${bare}` }, 500)
+    );
+
+    const failure = await client
+      .searchAlerts({ match_all: {} }, 10, 0)
+      .then(
+        () => {
+          throw new Error("Expected search to fail");
+        },
+        (error: unknown) => error as Error
+      );
+    expect(failure.message).not.toContain(bare);
+    expect(failure.message).toContain("[REDACTED]");
+  });
+
   it("should retry transient indexer search failures", async () => {
     requestSpy.mockResolvedValueOnce(mockFetchResponse({ error: { type: "busy" } }, 503));
     requestSpy.mockResolvedValueOnce(
