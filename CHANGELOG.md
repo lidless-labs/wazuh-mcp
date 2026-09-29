@@ -53,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`scheme://host:port`), never path, query, or fragment.
 
 ### Changed
+- **Breaking:** dropped Node.js 20 (end of life). `engines.node` is now
+  `>=22.0.0` and CI tests Node 22 and 24.
+- CI supply chain: `actions/checkout` and `actions/setup-node` are pinned to
+  commit SHAs, `ci.yml` runs with `permissions: contents: read`, and
+  `publish.yml` grants `id-token: write` only to the publish job.
+- The publish workflow installs a pinned npm (`11.20.0`, needed for trusted
+  publishing) instead of `npm@latest`, and audits with `npm audit --omit=dev`.
+- Added `.github/dependabot.yml` with weekly updates for GitHub Actions and
+  npm (npm minor and patch updates grouped into one PR).
 - Indexer searches send `track_total_hits: 10000` instead of `true` plus a
   `timeout: "30s"`; when the real hit count exceeds 10000, pagination metadata
   (and the `wazuh://alerts/recent` resource) reports
@@ -67,6 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   envelope overhead), and caps below 1024 bytes are raised to 1024.
 - `.env.example` now defaults to `WAZUH_VERIFY_SSL=true` and
   `WAZUH_INDEXER_VERIFY_SSL=true`, with the `false` opt-outs commented out.
+
+### Removed
+- `scripts/proxmox_install.sh`. It targeted an older project, wrote
+  `WAZUH_API_KEY` and `PORT` settings this server never reads, and handled
+  secrets unsafely.
 
 ### Documentation
 - OSS adoption upgrade: README now leads with a what/why/how summary, a

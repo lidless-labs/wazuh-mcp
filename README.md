@@ -390,7 +390,7 @@ Transient manager `GET` requests and indexer search/readiness requests retry bri
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 <!-- content-guard: allow port-reference -->
 - A running Wazuh manager with API access (default port 55000)
 - Wazuh API credentials (username/password)
