@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-29
+
+Security hardening release. It is a major version because Node.js 20 is no
+longer supported and startup now rejects some configurations that 1.x
+accepted.
+
+### Upgrading from 1.x
+- Run on Node.js 22 or newer.
+- Use `https://` for `WAZUH_URL` and `WAZUH_INDEXER_URL`, or set
+  `WAZUH_ALLOW_INSECURE_HTTP=true` for a trusted lab network. URLs with
+  embedded credentials, a query string, or a fragment are rejected.
+- Many endpoint-reported fields now arrive wrapped in `<untrusted_siem_data>`
+  markers with `&`, `<`, and `>` entity-escaped. Update anything that
+  compares those fields exactly.
+- Start the MCP server with the `wazuh-mcp` bin (`dist/mcp-bin.js`), not
+  `node dist/index.js`, which is a library entry point since 1.1.4.
+
 ### Security
 - Escape `&`, `<`, `>` inside `<untrusted_siem_data>` markers so an
   attacker-controlled value containing `</untrusted_siem_data>` cannot close
@@ -81,6 +98,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/proxmox_install.sh`. It targeted an older project, wrote
   `WAZUH_API_KEY` and `PORT` settings this server never reads, and handled
   secrets unsafely.
+
+### Dependencies
+- `actions/checkout` 7.0.1 and `actions/setup-node` 7.0.0 (#19, #20), `tsx`
+  and `zod` minor updates (#21), vitest 5 (#23), and `@types/node` 26 (#24).
+  TypeScript 7 is held back because the tsup declaration build does not
+  support it yet (#22).
 
 ### Documentation
 - OSS adoption upgrade: README now leads with a what/why/how summary, a
@@ -182,6 +205,8 @@ rules, decoders, SCA, syscollector, rootcheck, FIM, manager logs and
 configuration, groups, and connection diagnostics, with optional Wazuh
 Indexer (OpenSearch) support for alert queries.
 
+[Unreleased]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.4...v2.0.0
 [1.1.4]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.0...v1.1.4
 [1.1.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lidless-labs/wazuh-mcp/releases/tag/v1.0.0
