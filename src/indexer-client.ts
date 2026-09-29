@@ -55,11 +55,11 @@ export class WazuhIndexerClient {
 
   constructor(config: IndexerConfig) {
     this.baseUrl = config.url;
-    this.authHeader =
-      "Basic " + Buffer.from(`${config.username}:${config.password}`).toString("base64");
+    const basicPayload = Buffer.from(`${config.username}:${config.password}`).toString("base64");
+    this.authHeader = "Basic " + basicPayload;
     this.verifySsl = config.verifySsl;
     this.timeout = config.timeout ?? 30_000;
-    this.errorSecrets = [config.username, config.password, this.authHeader];
+    this.errorSecrets = [config.username, config.password, this.authHeader, basicPayload];
   }
 
   get tlsVerificationEnabled(): boolean {

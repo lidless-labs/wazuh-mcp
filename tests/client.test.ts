@@ -220,6 +220,27 @@ describe("WazuhClient", () => {
       );
     });
 
+    it("should redact the Basic base64 payload echoed in an upstream error body", async () => {
+      const bare = Buffer.from("admin:secret").toString("base64");
+      requestSpy.mockResolvedValueOnce(
+        mockFetchResponse(
+          { message: `upstream blew up on ${bare} via Basic ${bare}` },
+          500
+        )
+      );
+
+      await client.get("/agents").then(
+        () => {
+          throw new Error("Expected request to fail");
+        },
+        (error: unknown) => {
+          expect(error).toBeInstanceOf(WazuhClientError);
+          expect((error as Error).message).not.toContain(bare);
+          expect((error as Error).message).toContain("[REDACTED]");
+        }
+      );
+    });
+
     it("should retry transient GET failures", async () => {
       requestSpy.mockResolvedValueOnce(mockFetchResponse({ message: "busy" }, 503));
       requestSpy.mockResolvedValueOnce(

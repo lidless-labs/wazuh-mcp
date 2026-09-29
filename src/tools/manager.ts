@@ -107,17 +107,13 @@ export function registerManagerTools(
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(
-                {
-                  configuration: config,
-                  section,
-                  output: {
-                    sensitive_config_included: includeSensitive,
-                  },
+              text: formatToolResponse({
+                configuration: config,
+                section,
+                output: {
+                  sensitive_config_included: includeSensitive,
                 },
-                null,
-                2
-              ),
+              }),
             },
           ],
         };

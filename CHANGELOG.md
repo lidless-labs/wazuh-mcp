@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Escape `&`, `<`, `>` inside `<untrusted_siem_data>` markers so an
+  attacker-controlled value containing `</untrusted_siem_data>` cannot close
+  the fence early; the untrusted-data note now documents the escaping.
+- Cap upstream response bodies (default 16 MiB, per-request overridable) with
+  early rejection on oversized `content-length` and byte counting while
+  streaming; enforce an absolute wall-clock deadline for headers plus body and
+  reject cleanly on response errors/aborts with exactly-once settlement.
+- Return a constant `upstream returned invalid JSON` error for unparseable
+  upstream bodies instead of leaking a body snippet to the model.
+- Redact the bare base64 `user:pass` payload and the full `Basic <payload>`
+  header from manager and indexer client errors, not just the username and
+  password.
+- Route `get_manager_config` output through the shared response-size cap so
+  huge configurations truncate with metadata instead of flooding the client.
+- Upgrade `@modelcontextprotocol/sdk` to `^1.31.0` and cap the stdio
+  read buffer (default 8 MiB, overridable via
+  `WAZUH_MCP_MAX_STDIO_BUFFER_BYTES`); oversized client messages make the
+  transport error and close.
+
 ### Documentation
 - OSS adoption upgrade: README now leads with a what/why/how summary, a
   copy-paste `npx -y wazuh-mcp` MCP client config, a "What it does" overview,
