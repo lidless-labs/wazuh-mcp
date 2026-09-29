@@ -7,6 +7,7 @@ describe("maxStdioBufferBytes", () => {
   });
 
   it("should default to 8 MiB", () => {
+    vi.stubEnv("WAZUH_MCP_MAX_STDIO_BUFFER_BYTES", undefined);
     expect(maxStdioBufferBytes()).toBe(8 * 1024 * 1024);
   });
 

@@ -69,8 +69,10 @@ export function markUntrustedDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => markUntrustedDeep(item));
   if (value && typeof value === "object") {
     return Object.fromEntries(
+      // Keys are attacker-controlled too (Wazuh's JSON decoder copies them
+      // from the log), so escape them as well.
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-        key,
+        escapeUntrusted(key),
         markUntrustedDeep(entry),
       ])
     );
@@ -111,6 +113,14 @@ function truncateUtf8(text: string, maxBytes: number): string {
   return buffer.subarray(0, maxBytes).toString("utf8");
 }
 
+// A truncated preview usually cuts off the trailing untrusted_data_note, so
+// carry it into the envelope.
+function untrustedNoteOf(value: unknown): { untrusted_data_note?: string } {
+  const output = (value as { output?: { untrusted_data_note?: unknown } } | null)?.output;
+  const note = output?.untrusted_data_note;
+  return typeof note === "string" ? { untrusted_data_note: note } : {};
+}
+
 export function formatToolResponse(value: unknown): string {
   const text = JSON.stringify(value, null, 2);
   const maxBytes = maxToolResponseBytes();
@@ -121,6 +131,7 @@ export function formatToolResponse(value: unknown): string {
   return JSON.stringify(
     {
       output: {
+        ...untrustedNoteOf(value),
         response_truncated: true,
         max_response_bytes: maxBytes,
         original_response_bytes: byteLength,

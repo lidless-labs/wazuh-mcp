@@ -75,7 +75,29 @@ describe("httpRequest response limits", () => {
 
     await expect(
       httpRequest(url, { method: "GET", timeoutMs: 2000, verifySsl: false })
-    ).rejects.toBeDefined();
+    ).rejects.toMatchObject({ code: "ECONNRESET" });
+  });
+
+  it("should enforce the deadline against a slow-drip body the idle timeout never catches", async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      const timer = setInterval(() => res.write(" "), 20);
+      res.on("close", () => clearInterval(timer));
+    });
+
+    await expect(
+      httpRequest(url, { method: "GET", timeoutMs: 200, verifySsl: false })
+    ).rejects.toBeInstanceOf(HttpTimeoutError);
+  });
+
+  it("should not apply the size precheck to HEAD responses", async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(200, { "Content-Length": "999999999" });
+      res.end();
+    });
+
+    const response = await httpRequest(url, { method: "HEAD", timeoutMs: 2000, verifySsl: false, maxResponseBytes: 10 });
+    expect(response.status).toBe(200);
   });
 });
 

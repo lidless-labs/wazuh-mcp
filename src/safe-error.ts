@@ -8,8 +8,11 @@ const SECRET_PATTERNS = [
 
 export function sanitizeErrorMessage(message: string, secrets: string[] = []): string {
   let sanitized = message;
-  for (const secret of secrets) {
-    if (secret) sanitized = sanitized.split(secret).join("[REDACTED]");
+  // Longest first: a short secret (e.g. the username) that is a substring of a
+  // longer one would otherwise split it and leak the remainder.
+  const ordered = secrets.filter(Boolean).sort((a, b) => b.length - a.length);
+  for (const secret of ordered) {
+    sanitized = sanitized.split(secret).join("[REDACTED]");
   }
   sanitized = sanitized
     .replace(SECRET_PATTERNS[0], "$1$2 [REDACTED]")

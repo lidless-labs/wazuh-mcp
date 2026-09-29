@@ -78,7 +78,9 @@ export async function httpRequest(url: string, options: HttpRequestOptions): Pro
       (response) => {
         const rawLength = response.headers?.["content-length"];
         const contentLength = Number(Array.isArray(rawLength) ? rawLength[0] : rawLength);
-        if (Number.isInteger(contentLength) && contentLength > maxBytes) {
+        // HEAD, 204 and 304 carry no body, so their Content-Length is not a size.
+        const hasBody = options.method !== "HEAD" && response.statusCode !== 204 && response.statusCode !== 304;
+        if (hasBody && Number.isInteger(contentLength) && contentLength > maxBytes) {
           request.destroy(new HttpResponseTooLargeError(maxBytes));
           settleReject(new HttpResponseTooLargeError(maxBytes));
           return;
@@ -119,9 +121,12 @@ export async function httpRequest(url: string, options: HttpRequestOptions): Pro
         response.on("error", (error: Error) => {
           settleReject(error);
         });
-        // 'aborted' carries no error object; surface a plain rejection.
+        // 'aborted' fires before the ECONNRESET 'error', so tag it the same way
+        // to keep mid-body resets retryable.
         response.on("aborted", () => {
-          settleReject(new Error("upstream response aborted"));
+          const error = new Error("upstream response aborted") as NodeJS.ErrnoException;
+          error.code = "ECONNRESET";
+          settleReject(error);
         });
       }
     );
