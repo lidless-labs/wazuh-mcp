@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CODE_OF_CONDUCT.md`, GitHub issue templates (`bug`, `feature`, routing
   config), and a pull request template with a no-PII checkbox.
 
+## [1.1.4] - 2026-07-06
+
+Released from the `fire/wazuhctrl-2026-07-06` branch; merged back to main on
+2026-09-29 so main matches what npm ships.
+
+### Added
+- `wazuhctrl` CLI (alias `wazuhctl`) with `status`, `agents list`,
+  `diagnostics`, and `mcp` commands. The MCP server keeps the `wazuh-mcp` bin.
+- Library entry point (`dist/index.js`) exports the clients, config loader, and
+  `createWazuhMcpServer`/`serveMcp`.
+
+### Changed
+- npm publishing moved to `.github/workflows/publish.yml` with trusted
+  publishing and provenance. 1.1.1 through 1.1.3 were publish-pipeline fixes
+  with no runtime changes.
+
 ## [1.1.0] - 2026-06-10
 
 Security hardening release. The headline change: **TLS certificate verification
@@ -91,5 +107,6 @@ rules, decoders, SCA, syscollector, rootcheck, FIM, manager logs and
 configuration, groups, and connection diagnostics, with optional Wazuh
 Indexer (OpenSearch) support for alert queries.
 
-[1.1.0]: https://github.com/solomonneas/wazuh-mcp/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/solomonneas/wazuh-mcp/releases/tag/v1.0.0
+[1.1.4]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.0...v1.1.4
+[1.1.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/lidless-labs/wazuh-mcp/releases/tag/v1.0.0
