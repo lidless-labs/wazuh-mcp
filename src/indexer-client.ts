@@ -26,6 +26,12 @@ interface OpenSearchResponse {
   };
 }
 
+// Cap total-hit counting and per-query runtime so a broad query cannot make
+// the indexer count or scan without bound. Past TRACK_TOTAL_HITS_CAP the
+// reported total is a lower bound (hits.total.relation === "gte").
+const TRACK_TOTAL_HITS_CAP = 10_000;
+const SEARCH_TIMEOUT = "30s";
+
 interface AlertFilters {
   level?: number;
   agent_id?: string;
@@ -50,6 +56,7 @@ export class WazuhIndexerClient {
   private readonly baseUrl: string;
   private readonly authHeader: string;
   private readonly verifySsl: boolean;
+  private readonly ca?: string;
   private readonly timeout: number;
   private readonly errorSecrets: string[];
 
@@ -58,6 +65,7 @@ export class WazuhIndexerClient {
     const basicPayload = Buffer.from(`${config.username}:${config.password}`).toString("base64");
     this.authHeader = "Basic " + basicPayload;
     this.verifySsl = config.verifySsl;
+    this.ca = config.ca;
     this.timeout = config.timeout ?? 30_000;
     this.errorSecrets = [config.username, config.password, this.authHeader, basicPayload];
   }
@@ -90,6 +98,7 @@ export class WazuhIndexerClient {
           body: options.body,
           timeoutMs: this.timeout,
           verifySsl: this.verifySsl,
+          ca: this.ca,
         });
         if (
           attempt < maxAttempts &&
@@ -296,19 +305,21 @@ export class WazuhIndexerClient {
     size: number,
     from: number,
     sortOrder: "asc" | "desc" = "desc"
-  ): Promise<{ alerts: WazuhAlert[]; total: number }> {
+  ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const body = {
       query,
       size,
       from,
       sort: [{ timestamp: { order: sortOrder } }],
-      track_total_hits: true,
+      track_total_hits: TRACK_TOTAL_HITS_CAP,
+      timeout: SEARCH_TIMEOUT,
     };
 
     const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
     return {
       alerts: result.hits.hits.map((h) => this.mapHitToAlert(h)),
       total: result.hits.total.value,
+      totalIsLowerBound: result.hits.total.relation === "gte",
     };
   }
 
@@ -316,7 +327,7 @@ export class WazuhIndexerClient {
     limit: number,
     offset: number,
     filters?: AlertFilters
-  ): Promise<{ alerts: WazuhAlert[]; total: number }> {
+  ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [];
 
     if (filters?.level !== undefined) {
@@ -352,7 +363,8 @@ export class WazuhIndexerClient {
     const body = {
       query: { ids: { values: [id] } },
       size: 1,
-      track_total_hits: true,
+      track_total_hits: TRACK_TOTAL_HITS_CAP,
+      timeout: SEARCH_TIMEOUT,
     };
 
     const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
@@ -365,7 +377,7 @@ export class WazuhIndexerClient {
     limit: number,
     offset: number,
     filters?: AlertFilters
-  ): Promise<{ alerts: WazuhAlert[]; total: number }> {
+  ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [
       {
         multi_match: {
@@ -396,7 +408,7 @@ export class WazuhIndexerClient {
     limit: number,
     offset: number,
     filters: VulnerabilityFilters = {}
-  ): Promise<{ vulnerabilities: WazuhVulnerability[]; total: number }> {
+  ): Promise<{ vulnerabilities: WazuhVulnerability[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [];
 
     if (filters.cve_id) {
@@ -426,13 +438,15 @@ export class WazuhIndexerClient {
       size: limit,
       from: offset,
       sort: [{ "vulnerability.detected_at": { order: "desc", unmapped_type: "date" } }],
-      track_total_hits: true,
+      track_total_hits: TRACK_TOTAL_HITS_CAP,
+      timeout: SEARCH_TIMEOUT,
     };
 
     const result = await this.post<OpenSearchResponse>("/wazuh-states-vulnerabilities*/_search", body);
     return {
       vulnerabilities: result.hits.hits.map((h) => this.mapHitToVulnerability(h)),
       total: result.hits.total.value,
+      totalIsLowerBound: result.hits.total.relation === "gte",
     };
   }
 }

@@ -63,7 +63,7 @@ export function registerResources(
         };
       }
 
-      const { alerts: rawAlerts, total } = await indexerClient.getRecentAlerts(25, 0);
+      const { alerts: rawAlerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(25, 0);
       const alerts = rawAlerts.map((alert) => ({
         id: alert.id,
         timestamp: alert.timestamp,
@@ -71,7 +71,7 @@ export function registerResources(
         rule_level: alert.rule?.level,
         rule_description: markUntrusted(alert.rule?.description),
         agent_id: alert.agent?.id,
-        agent_name: alert.agent?.name,
+        agent_name: markUntrusted(alert.agent?.name),
       }));
 
       return {
@@ -82,6 +82,7 @@ export function registerResources(
             text: formatToolResponse({
               alerts,
               total,
+              ...(totalIsLowerBound ? { total_is_lower_bound: true } : {}),
               output: { untrusted_data_note: UNTRUSTED_DATA_NOTE },
             }),
           },

@@ -315,13 +315,15 @@ Set the following environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://192.0.2.2:55000`) |
+| `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://192.0.2.2:55000`). Must be `https://` (or `http://` with `WAZUH_ALLOW_INSECURE_HTTP=true`), and must not contain embedded credentials, a query string, or a fragment. A path prefix for a reverse proxy is allowed. |
 | `WAZUH_USERNAME` | Yes | - | API username |
 | `WAZUH_PASSWORD` | Yes | - | API password |
 | `WAZUH_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
+| `WAZUH_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the manager's TLS certificate (private CA or self-signed). Read at startup; the server exits with an error if the file cannot be read. Prefer this over `WAZUH_VERIFY_SSL=false`. |
+| `WAZUH_ALLOW_INSECURE_HTTP` | No | `false` | Allow plain `http://` for `WAZUH_URL` and `WAZUH_INDEXER_URL`. When unset, `http://` URLs are rejected at startup. When enabled and in use, the server prints a startup warning to stderr. Trusted lab networks only. |
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
 | `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
-| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. |
+| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. Values below `1024` are raised to `1024`. The truncated envelope itself always fits within the cap. |
 | `WAZUH_MCP_MAX_STDIO_BUFFER_BYTES` | No | `8388608` (8 MiB) | Maximum stdio read-buffer size in bytes. Must be a positive integer. A single client message exceeding it makes the transport error and close. |
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
@@ -332,13 +334,16 @@ Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSe
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://192.0.2.2:9200`) |
+| `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://192.0.2.2:9200`). Same URL rules as `WAZUH_URL`. |
 | `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
 | `WAZUH_INDEXER_PASSWORD` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer password. The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. |
 | `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
+| `WAZUH_INDEXER_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the indexer's TLS certificate. Read at startup; the server exits with an error if the file cannot be read. |
 | `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
 
 If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
+
+Indexer searches count at most 10000 matching hits and carry a 30-second server-side `timeout`. When the real match count is higher, `pagination.total_is_lower_bound` is `true` and `total` is 10000. Alert and vulnerability tools accept `offset` up to 9999 and reject requests where `offset + limit` exceeds 10000 (OpenSearch's default `max_result_window`); narrow the query with filters or a time range instead of paging deeper.
 
 SSL certificate verification is enabled by default (secure by default). When either SSL verification setting is explicitly set to `false`, the server prints a startup warning to stderr. TLS verification is disabled only for that configured Wazuh client.
 
@@ -359,7 +364,7 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 
 ### Untrusted SIEM Content
 
-Alert and log fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) controls the text that lands in `full_log`, alert `rule_description`, raw event `data`, and manager log descriptions. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
+Alert, log, and inventory fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) or control a process, package, file, or hostname on it controls the text that lands in `full_log`, alert `rule_description`, `agent_name`, `location`, and `decoder`, raw event `data`, manager log descriptions, agent names and OS fields, syscollector process/package/port/interface/hotfix fields, FIM paths and owners, rootcheck events, SCA policy and check text, and vulnerability package and description fields. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
 
 ### Input Validation
 

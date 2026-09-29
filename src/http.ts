@@ -8,6 +8,8 @@ export interface HttpRequestOptions {
   body?: string;
   timeoutMs: number;
   verifySsl: boolean;
+  /** PEM CA bundle to trust for https targets (in addition to verifySsl). */
+  ca?: string;
   maxResponseBytes?: number;
 }
 
@@ -74,6 +76,7 @@ export async function httpRequest(url: string, options: HttpRequestOptions): Pro
         method: options.method,
         headers: options.headers,
         rejectUnauthorized: isHttps ? options.verifySsl : undefined,
+        ...(isHttps && options.ca !== undefined ? { ca: options.ca } : {}),
       },
       (response) => {
         const rawLength = response.headers?.["content-length"];

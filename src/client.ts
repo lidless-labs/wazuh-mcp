@@ -46,10 +46,14 @@ export class WazuhClient {
   private static readonly retryStatuses = new Set([429, 502, 503, 504]);
 
   private token: string | null = null;
+  // Shared by every caller that needs a token at the same time, so a burst of
+  // requests (or of 401s) triggers one auth POST instead of one per request.
+  private authInFlight: Promise<string> | null = null;
   private readonly baseUrl: string;
   private readonly username: string;
   private readonly password: string;
   private readonly verifySsl: boolean;
+  private readonly ca?: string;
   private readonly timeout: number;
 
   constructor(config: WazuhConfig) {
@@ -57,6 +61,7 @@ export class WazuhClient {
     this.username = config.username;
     this.password = config.password;
     this.verifySsl = config.verifySsl;
+    this.ca = config.ca;
     this.timeout = config.timeout;
   }
 
@@ -93,6 +98,7 @@ export class WazuhClient {
           body: options.body,
           timeoutMs: this.timeout,
           verifySsl: this.verifySsl,
+          ca: this.ca,
         });
         if (
           attempt < maxAttempts &&
@@ -126,6 +132,15 @@ export class WazuhClient {
   }
 
   async authenticate(): Promise<string> {
+    if (!this.authInFlight) {
+      this.authInFlight = this.performAuthenticate().finally(() => {
+        this.authInFlight = null;
+      });
+    }
+    return this.authInFlight;
+  }
+
+  private async performAuthenticate(): Promise<string> {
     const credentials = this.basicCredentials();
 
     let response: HttpResponse;
@@ -191,8 +206,9 @@ export class WazuhClient {
       }
     }
 
+    const usedToken = this.token;
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.token}`,
+      Authorization: `Bearer ${usedToken}`,
       "Content-Type": "application/json",
     };
 
@@ -205,8 +221,10 @@ export class WazuhClient {
 
     // Auto-refresh token on 401
     if (response.status === 401) {
-      this.token = null;
-      await this.authenticate();
+      // Only refresh if nobody else already replaced the rejected token;
+      // otherwise retry with the fresh one.
+      if (this.token === usedToken) this.token = null;
+      if (!this.token) await this.authenticate();
       headers.Authorization = `Bearer ${this.token}`;
 
       const retryResponse = await this.send(url.toString(), {

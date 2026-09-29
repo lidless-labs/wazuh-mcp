@@ -2,6 +2,8 @@ import { Buffer } from "node:buffer";
 import { z } from "zod";
 
 const DEFAULT_MAX_TOOL_RESPONSE_BYTES = 250_000;
+// Smallest cap honored, so the truncation envelope itself always fits.
+const MIN_MAX_TOOL_RESPONSE_BYTES = 1024;
 
 export const includeIpSchema = z
   .boolean()
@@ -92,19 +94,26 @@ export function withOptionalField<K extends string, V>(
   return target;
 }
 
-export function paginationMetadata(total: number, limit: number, offset: number): Record<string, number | boolean> {
+export function paginationMetadata(
+  total: number,
+  limit: number,
+  offset: number,
+  totalIsLowerBound = false
+): Record<string, number | boolean> {
   return {
     total,
     limit,
     offset,
     has_more: offset + limit < total,
+    // Indexer totals stop counting at 10000; flag when the real count is higher.
+    ...(totalIsLowerBound ? { total_is_lower_bound: true } : {}),
   };
 }
 
 function maxToolResponseBytes(): number {
   const value = Number(process.env.WAZUH_MCP_MAX_RESPONSE_BYTES ?? DEFAULT_MAX_TOOL_RESPONSE_BYTES);
   if (!Number.isInteger(value) || value <= 0) return DEFAULT_MAX_TOOL_RESPONSE_BYTES;
-  return value;
+  return Math.max(value, MIN_MAX_TOOL_RESPONSE_BYTES);
 }
 
 function truncateUtf8(text: string, maxBytes: number): string {
@@ -127,18 +136,33 @@ export function formatToolResponse(value: unknown): string {
   const byteLength = Buffer.byteLength(text, "utf8");
   if (byteLength <= maxBytes) return text;
 
-  const preview = truncateUtf8(text, Math.max(0, Math.floor(maxBytes * 0.6)));
-  return JSON.stringify(
-    {
-      output: {
-        ...untrustedNoteOf(value),
-        response_truncated: true,
-        max_response_bytes: maxBytes,
-        original_response_bytes: byteLength,
+  const envelope = (preview: string): string =>
+    JSON.stringify(
+      {
+        output: {
+          ...untrustedNoteOf(value),
+          response_truncated: true,
+          max_response_bytes: maxBytes,
+          original_response_bytes: byteLength,
+        },
+        preview,
       },
-      preview,
-    },
-    null,
-    2
-  );
+      null,
+      2
+    );
+
+  // The preview is re-escaped inside the envelope (quotes and newlines grow),
+  // so shrink it by the overshoot until the whole envelope fits the cap.
+  let budget = maxBytes - Buffer.byteLength(envelope(""), "utf8");
+  let result = envelope("");
+  while (budget > 0) {
+    const candidate = envelope(truncateUtf8(text, budget));
+    const overshoot = Buffer.byteLength(candidate, "utf8") - maxBytes;
+    if (overshoot <= 0) {
+      result = candidate;
+      break;
+    }
+    budget -= overshoot;
+  }
+  return result;
 }

@@ -55,8 +55,9 @@ describe("formatToolResponse", () => {
     };
 
     expect(parsed.output.response_truncated).toBe(true);
-    expect(parsed.output.max_response_bytes).toBe(200);
-    expect(parsed.output.original_response_bytes).toBeGreaterThan(200);
+    // Caps below 1024 bytes are raised to the 1024-byte floor.
+    expect(parsed.output.max_response_bytes).toBe(1024);
+    expect(parsed.output.original_response_bytes).toBeGreaterThan(1024);
     expect(parsed.preview).toContain("items");
   });
 });
