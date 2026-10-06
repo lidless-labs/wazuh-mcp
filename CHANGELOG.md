@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-06
+
+Least-privilege release. The README now sets up read-only Wazuh accounts
+instead of `wazuh-wui` and the indexer `admin` user, and `wazuhctrl` works
+through npx and global installs. A config that sets `WAZUH_INDEXER_URL`
+without `WAZUH_INDEXER_USERNAME` now fails at startup instead of using
+`admin`. Like the `WAZUH_INDEXER_PASSWORD` check in 1.1.0, that ships in a
+minor version, with the change described under "Upgrading from 2.0.0".
+
 ### Upgrading from 2.0.0
 - If `WAZUH_INDEXER_URL` is set and `WAZUH_INDEXER_USERNAME` is not, startup
   now fails. Set it to a dedicated indexer user (README: Least-privilege
@@ -271,7 +280,8 @@ rules, decoders, SCA, syscollector, rootcheck, FIM, manager logs and
 configuration, groups, and connection diagnostics, with optional Wazuh
 Indexer (OpenSearch) support for alert queries.
 
-[Unreleased]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.4...v2.0.0
 [1.1.4]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.0...v1.1.4
 [1.1.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.0.0...v1.1.0
