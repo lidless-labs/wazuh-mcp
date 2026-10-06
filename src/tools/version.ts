@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerReadOnlyTool } from "./annotations.js";
 import { toolErrorResponse } from "./errors.js";
 import type { WazuhClient } from "../client.js";
 import { formatToolResponse } from "./output.js";
@@ -7,7 +8,8 @@ export function registerVersionTools(
   server: McpServer,
   client: WazuhClient
 ): void {
-  server.tool(
+  registerReadOnlyTool(
+    server,
     "get_wazuh_version",
     "Get the Wazuh manager version and API information",
     {},

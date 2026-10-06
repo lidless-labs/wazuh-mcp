@@ -62,7 +62,7 @@ npm test
 
 ## Adding a tool
 
-1. Add the handler to the matching domain file under `src/tools/` (or a new file if it is a new domain), registering it with `server.tool(...)`.
+1. Add the handler to the matching domain file under `src/tools/` (or a new file if it is a new domain), registering it with `registerReadOnlyTool(server, ...)` from `src/tools/annotations.ts`. That helper calls the SDK's `registerTool` with the shared `readOnlyHint: true` and `openWorldHint: true` annotations. `tests/annotations.test.ts` fails if a listed tool lacks them, and it pins the tool count, so update that count when you add a tool.
 2. Define its input schema with Zod. Reuse the shared schemas in `src/tools/schemas.ts` for pagination and identifiers.
 3. Route every error path through `src/safe-error.ts`. Never return a raw API or HTTP error.
 4. If the tool returns attacker-influenced SIEM text, delimit it with `<untrusted_siem_data>` markers the way the existing alert and manager tools do.

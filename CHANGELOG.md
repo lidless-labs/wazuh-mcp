@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading from 2.0.0
+- If `WAZUH_INDEXER_URL` is set and `WAZUH_INDEXER_USERNAME` is not, startup
+  now fails. Set it to a dedicated indexer user (README: Least-privilege
+  setup), or to `admin` to keep the old behavior. Configs copied from the
+  2.0.0 README already set it and need no change.
+
+### Fixed
+- `wazuhctrl` and `wazuhctl` now run when started through npm's bin symlink,
+  which is how npx, global installs, and `node_modules/.bin` start them.
+  The entry check compared the symlink path in `process.argv[1]` with the
+  module's real path, so the CLI printed nothing and exited 0. The check now
+  uses Node's `import.meta.main` where it exists (Node 22.18 and later 22.x
+  releases, and 24.2 and later) and otherwise compares both paths after
+  `realpathSync`.
+- `wazuhctrl mcp` reports a startup error, such as a missing
+  `WAZUH_INDEXER_USERNAME`, as the same sanitized JSON error as the other
+  commands and exits 1, instead of crashing with an unhandled promise
+  rejection and a stack trace.
+
+### Changed
+- **Breaking:** when `WAZUH_INDEXER_URL` is set, `WAZUH_INDEXER_USERNAME` is
+  required, and a missing or empty value fails at startup with the same kind
+  of error as the `WAZUH_INDEXER_PASSWORD` check from 1.1.0. It no longer falls
+  back to `admin`. Migration: set `WAZUH_INDEXER_USERNAME` to a dedicated
+  indexer user with a read-only role (or to `admin` to keep the old behavior).
+- Tools register through the SDK's `registerTool` API instead of the
+  deprecated `server.tool`. Tool names, descriptions, and input schemas are
+  unchanged.
+
+### Added
+- All 28 tools declare the MCP tool annotations `readOnlyHint: true` and
+  `openWorldHint: true`, defined once in `src/tools/annotations.ts`. The open
+  world hint is true because most tool output originates on monitored
+  endpoints and can be written by an attacker, so clients should treat it as
+  untrusted content.
+  `destructiveHint` and `idempotentHint` are left out because the MCP
+  specification gives them meaning only when `readOnlyHint` is false. A test
+  lists the tools through an SDK client and fails if any tool lacks them.
+
+### Dependencies
+- Lockfile bump of the transitive `proxy-addr` (via the MCP SDK's `express`)
+  from 2.0.7 to 2.0.8 for GHSA-jqcg-44mw-7w3h, which failed
+  `npm audit --omit=dev`. The stdio server does not run express, and
+  `package.json` is unchanged.
+
+### Documentation
+- README Quickstart and every client recipe now use a Wazuh API user with the
+  built-in `readonly` role and a dedicated indexer user instead of `wazuh-wui`
+  and `admin`. On macOS and Linux they load credentials from a 0600 env file
+  through a small wrapper script instead of inline passwords in client
+  config. The wrapper does not run on Windows, so the README says to run
+  `npx -y wazuh-mcp` there with the settings in the client's `env` object or
+  `--env` options, and to make that config readable only by your account.
+- New README "Least-privilege setup" section: API commands to create the
+  `readonly` user, an indexer role with `cluster:monitor/main` plus `read` and
+  `indices:admin/get` on `wazuh-alerts-*` and
+  `wazuh-states-vulnerabilities-*` with its user and role mapping, and how to
+  point `WAZUH_CA_FILE` and `WAZUH_INDEXER_CA_FILE` at the deployment root CA.
+  The role pattern matches the concrete vulnerability indices that the
+  server's `wazuh-states-vulnerabilities*` queries resolve to. The section
+  also notes that default indexer installs map every user to the built-in
+  `own_index` role, and that `securityadmin.sh -cd` removes users and roles
+  created through the REST API.
+- `.env.example` and `CONTRIBUTING.md` follow the same account names and the
+  new tool registration helper.
+
 ## [2.0.0] - 2026-09-29
 
 Security hardening release. It is a major version because Node.js 20 is no

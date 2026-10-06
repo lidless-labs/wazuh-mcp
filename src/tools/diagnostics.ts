@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerReadOnlyTool } from "./annotations.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
 import type { WazuhConfig } from "../config.js";
@@ -233,7 +234,8 @@ export function registerDiagnosticTools(
   config: WazuhConfig,
   indexerClient?: WazuhIndexerClient
 ): void {
-  server.tool(
+  registerReadOnlyTool(
+    server,
     "diagnose_wazuh_connection",
     "Check Wazuh MCP configuration and connectivity without exposing credentials",
     {
