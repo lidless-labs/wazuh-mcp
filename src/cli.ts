@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getConfig, type IndexerConfig, type WazuhConfig } from "./config.js";
@@ -306,12 +306,14 @@ export async function run(rawArgs: string[], deps: Partial<WazuhCtrlDeps> = {}):
     resolvedDeps.out(pkg.version);
     return 0;
   }
-  if (parsed.kind === "mcp") {
-    await resolvedDeps.serve();
-    return 0;
-  }
-
   try {
+    // serve() reads the config, so a config error such as a missing indexer
+    // username gets the same sanitized JSON error as the other commands.
+    if (parsed.kind === "mcp") {
+      await resolvedDeps.serve();
+      return 0;
+    }
+
     const config = resolvedDeps.getConfig();
     const client = resolvedDeps.makeClient(config);
     const indexerClient = config.indexer ? resolvedDeps.makeIndexerClient(config.indexer) : undefined;
@@ -329,7 +331,36 @@ export async function run(rawArgs: string[], deps: Partial<WazuhCtrlDeps> = {}):
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function realPathOrResolved(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/**
+ * Whether `scriptPath` (normally `process.argv[1]`) is the module at
+ * `moduleUrl`. npm runs bins through symlinks (`node_modules/.bin`, global
+ * installs, npx), so argv[1] is the link while `import.meta.url` is the real
+ * file. Both sides are compared as real paths. A path that cannot be resolved
+ * falls back to its absolute form instead of throwing.
+ */
+export function isEntryPoint(scriptPath: string | undefined, moduleUrl: string): boolean {
+  if (!scriptPath) return false;
+  let modulePath: string;
+  try {
+    modulePath = fileURLToPath(moduleUrl);
+  } catch {
+    return false;
+  }
+  return realPathOrResolved(scriptPath) === realPathOrResolved(modulePath);
+}
+
+// import.meta.main also covers `node dist/cli`, where argv[1] has no extension.
+// Node releases before 22.18, and 24.0 and 24.1, leave it undefined, so the
+// path check remains.
+if (import.meta.main === true || isEntryPoint(process.argv[1], import.meta.url)) {
   run(process.argv.slice(2)).then((code) => {
     process.exitCode = code;
   });

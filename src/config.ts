@@ -114,8 +114,18 @@ export function getConfig(): WazuhConfig {
   const indexerUrl = process.env.WAZUH_INDEXER_URL;
   if (indexerUrl) {
     const parsedIndexerUrl = parseServiceUrl(indexerUrl, "WAZUH_INDEXER_URL", allowInsecureHttp);
+    // Fail fast instead of silently falling back to the indexer superuser
+    // name. The account should be a dedicated indexer user with a read-only
+    // role.
+    const indexerUsername = process.env.WAZUH_INDEXER_USERNAME;
+    if (!indexerUsername) {
+      throw new Error(
+        "WAZUH_INDEXER_USERNAME environment variable is required when WAZUH_INDEXER_URL is set. Set it to a dedicated Wazuh Indexer user with a read-only role, or unset WAZUH_INDEXER_URL to run without alert and vulnerability tools."
+      );
+    }
+
     // Fail fast instead of silently defaulting to an empty password and
-    // sending "Basic admin:" on every indexer request.
+    // sending "Basic <user>:" on every indexer request.
     const indexerPassword = process.env.WAZUH_INDEXER_PASSWORD;
     if (!indexerPassword) {
       throw new Error(
@@ -125,7 +135,7 @@ export function getConfig(): WazuhConfig {
 
     indexer = {
       url: parsedIndexerUrl,
-      username: process.env.WAZUH_INDEXER_USERNAME ?? "admin",
+      username: indexerUsername,
       password: indexerPassword,
       verifySsl: parseBooleanEnv(process.env.WAZUH_INDEXER_VERIFY_SSL, true),
       timeout: parseTimeoutMs(process.env.WAZUH_INDEXER_TIMEOUT, "WAZUH_INDEXER_TIMEOUT"),

@@ -43,8 +43,8 @@ interface CapturedTool {
 function capture(register: (server: McpServer) => void): Map<string, CapturedTool> {
   const tools = new Map<string, CapturedTool>();
   const server = {
-    tool: (name: string, description: string, _schema: unknown, handler: ToolHandler) => {
-      tools.set(name, { description, handler });
+    registerTool: (name: string, config: { description: string }, handler: ToolHandler) => {
+      tools.set(name, { description: config.description, handler });
     },
   } as unknown as McpServer;
   register(server);
@@ -398,6 +398,7 @@ describe("connection config validation", () => {
 
   it("applies the same checks to WAZUH_INDEXER_URL", () => {
     setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_URL", "https://admin:pw@indexer.example.com:9200");
     expect(() => getConfig()).toThrow("WAZUH_INDEXER_URL must not embed credentials");
@@ -409,6 +410,7 @@ describe("connection config validation", () => {
   it("allows http:// with WAZUH_ALLOW_INSECURE_HTTP=true and warns at startup", () => {
     setRequiredEnv("http://wazuh.example.com:55000/");
     vi.stubEnv("WAZUH_ALLOW_INSECURE_HTTP", "true");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_URL", "http://indexer.example.com:9200");
 
@@ -440,6 +442,7 @@ describe("connection config validation", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_CA_FILE", managerCa);
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_CA_FILE", indexerCa);
 

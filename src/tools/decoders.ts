@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerReadOnlyTool } from "./annotations.js";
 import { toolErrorResponse } from "./errors.js";
 import type { WazuhClient } from "../client.js";
 import { formatToolResponse, paginationMetadata } from "./output.js";
@@ -8,7 +9,8 @@ export function registerDecoderTools(
   server: McpServer,
   client: WazuhClient
 ): void {
-  server.tool(
+  registerReadOnlyTool(
+    server,
     "list_decoders",
     "List all available Wazuh decoders with optional name filtering",
     {

@@ -44,35 +44,192 @@ npm run build
 
 ## Quickstart
 
-Run it straight from npm with `npx`, no clone or build required:
+The quickstart runs the published npm package with `npx` under two dedicated accounts: a Wazuh API user with the built-in `readonly` role and a Wazuh Indexer user whose custom role reads only the alert and vulnerability indices. Create both with [Least-privilege setup](#least-privilege-setup) first. Do not point the server at the `wazuh-wui` API administrator or the indexer `admin` superuser.
+
+Put the settings in a file that only you can read:
+
+```bash
+mkdir -p -m 700 ~/.config/wazuh-mcp
+touch ~/.config/wazuh-mcp/env
+chmod 600 ~/.config/wazuh-mcp/env
+```
+
+Then fill it in with your editor:
+
+```bash
+WAZUH_URL=https://your-wazuh-manager:55000
+WAZUH_USERNAME=wazuh-mcp-api
+WAZUH_PASSWORD='the-api-user-password'
+WAZUH_CA_FILE=/path/to/root-ca.pem
+WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200
+WAZUH_INDEXER_USERNAME=wazuh-mcp-indexer
+WAZUH_INDEXER_PASSWORD='the-indexer-user-password'
+WAZUH_INDEXER_CA_FILE=/path/to/root-ca.pem
+```
+
+The wrapper below reads this file as shell code, so keep each password in single quotes. Write a single quote inside a password as `'\''`, or choose a password without one.
+
+To run without the indexer, leave out all four `WAZUH_INDEXER_*` lines. The agent, rule, decoder, and version tools still work, and the alert and vulnerability tools return a configuration message instead of failing. If you keep `WAZUH_INDEXER_URL`, you also need `WAZUH_INDEXER_USERNAME` and `WAZUH_INDEXER_PASSWORD`, or the server stops at startup. `WAZUH_INDEXER_CA_FILE` stays optional. [TLS verification](#tls-verification) explains which CA file to use.
+
+Save this wrapper as `~/.local/bin/wazuh-mcp-env`. It loads the file and then runs the command that follows it, so no password appears in client config:
+
+```bash
+mkdir -p ~/.local/bin
+cat > ~/.local/bin/wazuh-mcp-env <<'EOF'
+#!/bin/sh
+# Load wazuh-mcp settings from a 0600 file, then run the given command.
+set -eu
+set -a
+. "${WAZUH_MCP_ENV_FILE:-$HOME/.config/wazuh-mcp/env}"
+set +a
+exec "$@"
+EOF
+chmod 755 ~/.local/bin/wazuh-mcp-env
+```
+
+Check both logins, TLS, and the indexer role from a shell before you wire up a client:
+
+```bash
+~/.local/bin/wazuh-mcp-env npx -y --package wazuh-mcp wazuhctrl diagnostics
+```
+
+It prints `diagnostics status=` and one line per check, and it exits 1 when a check reports an error. It does not check the API user's role, because logging in and reading the API version need no permission. wazuh-mcp 2.0.0 and earlier print nothing and exit 0 here because of a bin-symlink bug (see the [CHANGELOG](CHANGELOG.md)), so no output means the check did not run. In that case, wire up the client and ask it to run `diagnose_wazuh_connection`, which runs the same checks.
+
+Then register the wrapper as the server command. Most MCP clients start the command without a shell, so use the full path to the wrapper instead of `~`:
 
 ```json
 {
   "mcpServers": {
     "wazuh": {
-      "command": "npx",
-      "args": ["-y", "wazuh-mcp"],
-      "env": {
-        "WAZUH_URL": "https://your-wazuh-manager:55000",
-        "WAZUH_USERNAME": "wazuh-wui",
-        "WAZUH_PASSWORD": "your-password",
-        "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
-        "WAZUH_INDEXER_USERNAME": "admin",
-        "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
-      }
+      "command": "/absolute/path/to/wazuh-mcp-env",
+      "args": ["npx", "-y", "wazuh-mcp"]
     }
   }
 }
 ```
 
-Drop that into your MCP client's server config (see [Usage](#usage) for the exact file per client), restart the client, and ask it something like *"list the active Wazuh agents"* or *"search alerts for brute force in the last 24 hours."* The indexer settings are optional: without them the agent, rule, decoder, and version tools still work, and the alert and vulnerability tools return a configuration message instead of failing.
+Drop that into your MCP client's server config (see [Usage](#usage) for the exact file per client), restart the client, and ask it something like *"list the active Wazuh agents"* or *"search alerts for brute force in the last 24 hours."* If your client expands environment variables in its config, you can reference variables from the client's own environment instead of using the wrapper. On macOS and Linux, never paste a literal password into client config. The wrapper does not run on Windows, and [Usage](#usage) covers that case.
 
 Prefer a global install?
 
 ```bash
 npm install -g wazuh-mcp
-# then use "command": "wazuh-mcp" instead of the npx invocation above
 ```
+
+Then use `"args": ["wazuh-mcp"]` instead of the npx invocation above.
+
+## Least-privilege setup
+
+wazuh-mcp only reads, so neither account needs write or administrator rights. The permissions below were checked against Wazuh 4.14.8: the `readonly` API role covered every manager tool, and the indexer role covered the alert and vulnerability tools plus both index checks in `diagnose_wazuh_connection`. The commands run once as an administrator, need `curl` and `jq`, and read passwords with `read -rs` (bash or zsh) so they stay out of shell history. The administrator password passed to `curl -u` and the API token passed with `-H` can still appear briefly in the process list, so run the commands on a host where no other user can see your processes.
+
+### TLS verification
+
+Keep `WAZUH_VERIFY_SSL` and `WAZUH_INDEXER_VERIFY_SSL` at their default of `true`. Instead of turning verification off, point `WAZUH_CA_FILE` and `WAZUH_INDEXER_CA_FILE` at the root CA that signed your Wazuh certificates. On the Docker deployment that file is `wazuh-docker/single-node/config/wazuh_indexer_ssl_certs/root-ca.pem` (`multi-node/` for a cluster). The host in each URL must be a name or address listed in that service's certificate. The single-node Docker certificates are issued for `wazuh.indexer` and `wazuh.manager`, so either reach the services by those names, for example through `/etc/hosts` entries, or regenerate the certificates with your host names in `config/certs.yml`.
+
+On a Linux host, Docker creates that directory as root, and the certificate generator sets it to mode 0500 and the files in it to 0400. Only root can read the files from the host, even if your account has user ID 1000, which owns most of them. Copy the CA to a file you own, and use the copy for both settings and for `CA_FILE` in the setup commands below:
+
+```bash
+mkdir -p -m 700 ~/.config/wazuh-mcp
+sudo cat wazuh-docker/single-node/config/wazuh_indexer_ssl_certs/root-ca.pem > ~/.config/wazuh-mcp/root-ca.pem
+```
+
+<!-- content-guard: allow localhost-bare -->
+On the Docker deployment the indexer certificate is already signed by that CA. The manager API certificate is not: unless you supply one, the API generates a self-signed certificate for `localhost` at startup, and that certificate fails verification against `root-ca.pem`. Replace it with a certificate signed by the root CA, saved as `server.crt` and `server.key` in the manager's `/var/ossec/api/configuration/ssl/`, and restart the manager. The same `root-ca.pem` then works for `WAZUH_CA_FILE`. The setup commands below verify TLS the same way, so do this step first.
+
+On single-node Docker, the certificate generator already created a manager certificate signed by the root CA, `wazuh.manager.pem` and its key `wazuh.manager-key.pem`, and the manager container mounts them as `/etc/ssl/filebeat.pem` and `/etc/ssl/filebeat.key`. The API directory is on a Docker volume inside the container, so copy them there and restart the Wazuh daemons inside the container, from `wazuh-docker/single-node`:
+
+```bash
+docker compose exec wazuh.manager sh -c 'cp /etc/ssl/filebeat.pem /var/ossec/api/configuration/ssl/server.crt && cp /etc/ssl/filebeat.key /var/ossec/api/configuration/ssl/server.key'
+docker compose exec wazuh.manager /var/ossec/bin/wazuh-control restart
+```
+
+The API makes the `wazuh` user the owner of both files when it starts, and the copies stay on the volume across restarts.
+
+On a package install, the root CA is `/etc/filebeat/certs/root-ca.pem` on the server node, and `filebeat.pem` and `filebeat-key.pem` in that directory are a server certificate signed by it. That directory is readable only by root, so copy those files with `sudo`.
+
+### Wazuh API user with the `readonly` role
+
+The built-in `readonly` role reads agents, groups, rules, decoders, SCA, FIM, rootcheck, syscollector inventory, and manager and cluster status, configuration, and logs. That covers every manager tool. It also reads CDB lists, CIS-CAT results, MITRE data, and the API configuration, which no tool uses, and it changes nothing. It has no `security:*` permissions, so it cannot read or change other users, roles, policies, or the security configuration. Like every API user, it can still read its own account and policies at `/security/users/me` and `/security/users/me/policies`. New API users start with `allow_run_as` disabled, which is what this server needs. Sign in once as an existing API administrator (`wazuh` or `wazuh-wui`) to create the user:
+
+```bash
+WAZUH_URL=https://your-wazuh-manager:55000
+CA_FILE=/path/to/root-ca.pem
+API_ADMIN=wazuh-wui
+
+printf 'Password for %s: ' "$API_ADMIN"; read -rs API_ADMIN_PASSWORD; echo
+printf 'Password for the new wazuh-mcp-api user: '; read -rs NEW_PASSWORD; echo
+export NEW_PASSWORD
+
+TOKEN=$(curl -sS --cacert "$CA_FILE" -u "$API_ADMIN:$API_ADMIN_PASSWORD" \
+  -X POST "$WAZUH_URL/security/user/authenticate?raw=true")
+
+USER_ID=$(jq -n '{username: "wazuh-mcp-api", password: env.NEW_PASSWORD}' |
+  curl -sS --cacert "$CA_FILE" -X POST "$WAZUH_URL/security/users" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data-binary @- |
+  jq -r '.data.affected_items[0].id')
+
+ROLE_ID=$(curl -sS --cacert "$CA_FILE" "$WAZUH_URL/security/roles" \
+    -H "Authorization: Bearer $TOKEN" |
+  jq -r '.data.affected_items[] | select(.name == "readonly") | .id')
+
+echo "user id: $USER_ID, readonly role id: $ROLE_ID"
+
+curl -sS --cacert "$CA_FILE" -X POST \
+  "$WAZUH_URL/security/users/$USER_ID/roles?role_ids=$ROLE_ID" \
+  -H "Authorization: Bearer $TOKEN"
+
+unset API_ADMIN_PASSWORD NEW_PASSWORD TOKEN
+```
+
+Both IDs must be numbers. If the user ID prints as `null`, run the `POST /security/users` request again without the final `jq` to see the API message. The usual causes are a password that breaks the rules (8 to 64 characters with an uppercase letter, a lowercase letter, a number, and a symbol), a `wazuh-mcp-api` user left over from an earlier run, or a wrong administrator password. The last request answers with `All roles were linked to user wazuh-mcp-api`.
+
+### Wazuh Indexer user and role
+
+The server sends `GET /` for cluster info, which needs the cluster permission `cluster:monitor/main`. Its `HEAD` index checks and `_search` queries go to `wazuh-alerts-*` and `wazuh-states-vulnerabilities*`. The vulnerability indices themselves are named `wazuh-states-vulnerabilities-` plus a suffix, so the role pattern below covers them. The role is read-only and limited to those two index families. Wazuh's documented read-only recipe (`cluster_composite_ops_ro` plus `read` on `*`) can search, but it gets HTTP 403 on both index checks in `diagnose_wazuh_connection` and can read every index. These commands use the indexer security REST API as the `admin` user:
+
+```bash
+INDEXER_URL=https://your-wazuh-indexer:9200
+CA_FILE=/path/to/root-ca.pem
+
+printf 'Password for the indexer admin user: '; read -rs INDEXER_ADMIN_PASSWORD; echo
+printf 'Password for the new wazuh-mcp-indexer user: '; read -rs NEW_PASSWORD; echo
+export NEW_PASSWORD
+
+curl -sS --cacert "$CA_FILE" -u "admin:$INDEXER_ADMIN_PASSWORD" -X PUT \
+  "$INDEXER_URL/_plugins/_security/api/roles/wazuh_mcp_read" \
+  -H "Content-Type: application/json" -d '{
+    "cluster_permissions": ["cluster:monitor/main"],
+    "index_permissions": [{
+      "index_patterns": ["wazuh-alerts-*", "wazuh-states-vulnerabilities-*"],
+      "allowed_actions": ["read", "indices:admin/get"]
+    }]
+  }'
+
+jq -n '{password: env.NEW_PASSWORD}' |
+  curl -sS --cacert "$CA_FILE" -u "admin:$INDEXER_ADMIN_PASSWORD" -X PUT \
+    "$INDEXER_URL/_plugins/_security/api/internalusers/wazuh-mcp-indexer" \
+    -H "Content-Type: application/json" --data-binary @-
+
+curl -sS --cacert "$CA_FILE" -u "admin:$INDEXER_ADMIN_PASSWORD" -X PUT \
+  "$INDEXER_URL/_plugins/_security/api/rolesmapping/wazuh_mcp_read" \
+  -H "Content-Type: application/json" -d '{"users": ["wazuh-mcp-indexer"]}'
+
+unset INDEXER_ADMIN_PASSWORD NEW_PASSWORD
+```
+
+Each request answers with `"status":"CREATED"` the first time and `"status":"OK"` on a rerun. The indexer rejects a weak password, or one too close to the user name, with `"status":"error"`, so check that the `internalusers` request printed `CREATED` or `OK` before you continue. To do the same in the Wazuh dashboard, open **Indexer management** > **Security**, create the user under **Internal users**, create a role with the permissions above under **Roles**, and add the user on that role's **Mapped users** tab.
+
+The `wazuh_mcp_read` role only reads, but it is not the only role the account gets. Default Wazuh indexer installs map every internal user to the built-in `own_index` role (`users: ["*"]` in `roles_mapping.yml`). That role allows all index actions on an index named after the user, so `wazuh-mcp-indexer` can create, write to, and delete an index called `wazuh-mcp-indexer`. To list the roles the account holds, run this request. curl prompts for the password, and the `roles` list shows `own_index` and `wazuh_mcp_read`:
+
+```bash
+curl -sS --cacert "$CA_FILE" -u wazuh-mcp-indexer "$INDEXER_URL/_plugins/_security/authinfo"
+```
+
+Removing `"*"` from the `own_index` mapping takes that role away from every internal user, not only this one.
+
+Running `securityadmin.sh -cd`, which Wazuh's Docker password-change steps do, reloads the security configuration from the YAML files and deletes users, roles, and mappings created through the REST API. After such a run, send the three requests above again. Keeping them in the YAML files instead needs more than an edit. On Docker only `config/wazuh_indexer/internal_users.yml` is mounted from the host, so `roles.yml` and `roles_mapping.yml` need bind mounts of their own, or edits to them are lost when the container is recreated. The `internal_users.yml` entry also takes a `hash:` value from `plugins/opensearch-security/tools/hash.sh`, not the password.
+
+With both accounts created, go back to [Quickstart](#quickstart) and write the env file.
 
 ## CLI
 
@@ -86,11 +243,13 @@ wazuhctrl diagnostics --no-connectivity
 wazuhctrl mcp
 ```
 
-`wazuhctrl` reads the same environment as the MCP adapter: `WAZUH_URL`, `WAZUH_USERNAME`, `WAZUH_PASSWORD`, optional `WAZUH_INDEXER_URL`, and optional indexer credentials. Agent IP addresses stay hidden unless a command explicitly requests them.
+`wazuhctrl` reads the same environment as the MCP adapter: `WAZUH_URL`, `WAZUH_USERNAME`, `WAZUH_PASSWORD`, optional `WAZUH_INDEXER_URL`, and the indexer credentials that become required once it is set. The [Quickstart](#quickstart) wrapper works for it too, for example `~/.local/bin/wazuh-mcp-env wazuhctrl diagnostics` after a global install. Agent IP addresses stay hidden unless a command explicitly requests them.
 
 ## Usage
 
-The quickstart `mcpServers` block at the top works for most clients. The per-client recipes below give you the exact file location or CLI command for each.
+The quickstart `mcpServers` block at the top works for most clients. The per-client recipes below give you the exact file location or CLI command for each. On macOS and Linux, all of them start the server through the `wazuh-mcp-env` wrapper from the [Quickstart](#quickstart), so credentials stay in the 0600 env file. Replace `/absolute/path/to/wazuh-mcp-env` with the wrapper's full path.
+
+The wrapper is a POSIX shell script and does not run on Windows. There, start `npx -y wazuh-mcp` directly and pass the `WAZUH_*` settings through the client: an `"env"` object on the server entry in a JSON config (see [Claude Desktop](#claude-desktop)), or one `--env KEY=value` option per setting after the server name and before the `--` in `claude mcp add` and `codex mcp add`. The settings, passwords included, then sit in the client's config file, so keep that file readable only by your account.
 
 ### Claude Desktop
 
@@ -100,32 +259,19 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "wazuh": {
-      "command": "npx",
-      "args": ["-y", "wazuh-mcp"],
-      "env": {
-        "WAZUH_URL": "https://your-wazuh-manager:55000",
-        "WAZUH_USERNAME": "wazuh-wui",
-        "WAZUH_PASSWORD": "your-password",
-        "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
-        "WAZUH_INDEXER_USERNAME": "admin",
-        "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
-      }
+      "command": "/absolute/path/to/wazuh-mcp-env",
+      "args": ["npx", "-y", "wazuh-mcp"]
     }
   }
 }
 ```
 
+On Windows, set `"command": "npx"` and `"args": ["-y", "wazuh-mcp"]`, put the `WAZUH_*` settings in an `"env"` object on the same entry, and keep `claude_desktop_config.json` readable only by your account. Setting them in your Windows user environment does not work, because Claude Desktop passes a stdio server only a short list of system variables such as `PATH` and `APPDATA`.
+
 ### Claude Code
 
 ```bash
-claude mcp add wazuh \
-  --env WAZUH_URL=https://your-wazuh-manager:55000 \
-  --env WAZUH_USERNAME=wazuh-wui \
-  --env WAZUH_PASSWORD=your-password \
-  --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
-  --env WAZUH_INDEXER_USERNAME=admin \
-  --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
-  -- npx -y wazuh-mcp
+claude mcp add wazuh -- /absolute/path/to/wazuh-mcp-env npx -y wazuh-mcp
 ```
 
 Add `--scope user` to make it available from any directory instead of only the current project.
@@ -135,14 +281,7 @@ Add `--scope user` to make it available from any directory instead of only the c
 [Codex CLI](https://github.com/openai/codex) registers MCP servers via `codex mcp add`:
 
 ```bash
-codex mcp add wazuh \
-  --env WAZUH_URL=https://your-wazuh-manager:55000 \
-  --env WAZUH_USERNAME=wazuh-wui \
-  --env WAZUH_PASSWORD=your-password \
-  --env WAZUH_INDEXER_URL=https://your-wazuh-indexer:9200 \
-  --env WAZUH_INDEXER_USERNAME=admin \
-  --env WAZUH_INDEXER_PASSWORD=your-indexer-password \
-  -- npx -y wazuh-mcp
+codex mcp add wazuh -- /absolute/path/to/wazuh-mcp-env npx -y wazuh-mcp
 ```
 
 Codex writes the entry to `~/.codex/config.toml` under `[mcp_servers.wazuh]`. Verify with `codex mcp list`.
@@ -153,33 +292,17 @@ With the npm package:
 
 ```bash
 openclaw mcp set wazuh '{
-  "command": "npx",
-  "args": ["-y", "wazuh-mcp"],
-  "env": {
-    "WAZUH_URL": "https://your-wazuh-manager:55000",
-    "WAZUH_USERNAME": "wazuh-wui",
-    "WAZUH_PASSWORD": "your-password",
-    "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
-    "WAZUH_INDEXER_USERNAME": "admin",
-    "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
-  }
+  "command": "/absolute/path/to/wazuh-mcp-env",
+  "args": ["npx", "-y", "wazuh-mcp"]
 }'
 ```
 
-Or, when running from a source checkout, point `command`/`args` at the built `dist/mcp-bin.js`:
+Or, when running from a source checkout, point `args` at the built `dist/mcp-bin.js`:
 
 ```bash
 openclaw mcp set wazuh '{
-  "command": "node",
-  "args": ["/absolute/path/to/wazuh-mcp/dist/mcp-bin.js"],
-  "env": {
-    "WAZUH_URL": "https://your-wazuh-manager:55000",
-    "WAZUH_USERNAME": "wazuh-wui",
-    "WAZUH_PASSWORD": "your-password",
-    "WAZUH_INDEXER_URL": "https://your-wazuh-indexer:9200",
-    "WAZUH_INDEXER_USERNAME": "admin",
-    "WAZUH_INDEXER_PASSWORD": "your-indexer-password"
-  }
+  "command": "/absolute/path/to/wazuh-mcp-env",
+  "args": ["node", "/absolute/path/to/wazuh-mcp/dist/mcp-bin.js"]
 }'
 ```
 
@@ -197,15 +320,8 @@ openclaw mcp list   # confirm "wazuh" is registered
 ```yaml
 mcp_servers:
   wazuh:
-    command: "npx"
-    args: ["-y", "wazuh-mcp"]
-    env:
-      WAZUH_URL: "https://your-wazuh-manager:55000"
-      WAZUH_USERNAME: "wazuh-wui"
-      WAZUH_PASSWORD: "your-password"
-      WAZUH_INDEXER_URL: "https://your-wazuh-indexer:9200"
-      WAZUH_INDEXER_USERNAME: "admin"
-      WAZUH_INDEXER_PASSWORD: "your-indexer-password"
+    command: "/absolute/path/to/wazuh-mcp-env"
+    args: ["npx", "-y", "wazuh-mcp"]
 ```
 
 Then reload MCP from inside a Hermes session with `/reload-mcp`.
@@ -213,10 +329,7 @@ Then reload MCP from inside a Hermes session with `/reload-mcp`.
 ### Standalone
 
 ```bash
-export WAZUH_URL=https://your-wazuh-manager:55000
-export WAZUH_USERNAME=wazuh-wui
-export WAZUH_PASSWORD=your-password
-npx -y wazuh-mcp
+~/.local/bin/wazuh-mcp-env npx -y wazuh-mcp
 ```
 
 ### Development
@@ -229,7 +342,7 @@ npm test       # Run tests
 
 ## MCP Tools
 
-All 28 tools are read-only.
+All 28 tools are read-only, and each one declares the MCP tool annotations `readOnlyHint: true` and `openWorldHint: true`. The tools query only your own Wazuh deployment, but most of what they return originates on monitored endpoints (see [Untrusted SIEM Content](#untrusted-siem-content)), so clients should treat the output as untrusted.
 
 ### Agent Tools
 
@@ -316,10 +429,10 @@ Set the following environment variables:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `WAZUH_URL` | Yes | - | Wazuh API URL (e.g., `https://192.0.2.2:55000`). Must be `https://` (or `http://` with `WAZUH_ALLOW_INSECURE_HTTP=true`), and must not contain embedded credentials, a query string, or a fragment. A path prefix for a reverse proxy is allowed. |
-| `WAZUH_USERNAME` | Yes | - | API username |
+| `WAZUH_USERNAME` | Yes | - | API username. Use a dedicated user with the built-in `readonly` role (see [Least-privilege setup](#least-privilege-setup)). |
 | `WAZUH_PASSWORD` | Yes | - | API password |
 | `WAZUH_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
-| `WAZUH_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the manager's TLS certificate (private CA or self-signed). Read at startup; the server exits with an error if the file cannot be read. Prefer this over `WAZUH_VERIFY_SSL=false`. |
+| `WAZUH_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the manager's TLS certificate (private CA or self-signed). Read at startup. The server exits with an error if the file cannot be read. Prefer this over `WAZUH_VERIFY_SSL=false`. See [TLS verification](#tls-verification) for the Docker deployment's root CA and the manager's default self-signed certificate. |
 | `WAZUH_ALLOW_INSECURE_HTTP` | No | `false` | Allow plain `http://` for `WAZUH_URL` and `WAZUH_INDEXER_URL`. When unset, `http://` URLs are rejected at startup. When enabled and in use, the server prints a startup warning to stderr. Trusted lab networks only. |
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
 | `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
@@ -335,10 +448,10 @@ Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSe
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `WAZUH_INDEXER_URL` | No | - | Wazuh Indexer URL (e.g., `https://192.0.2.2:9200`). Same URL rules as `WAZUH_URL`. |
-| `WAZUH_INDEXER_USERNAME` | No | `admin` | Indexer username |
+| `WAZUH_INDEXER_USERNAME` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer username. Use a dedicated indexer user with a read-only role (see [Least-privilege setup](#least-privilege-setup), including the `own_index` note). The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. There is no `admin` default (2.0.0 and earlier fell back to `admin`). |
 | `WAZUH_INDEXER_PASSWORD` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer password. The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. |
 | `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
-| `WAZUH_INDEXER_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the indexer's TLS certificate. Read at startup; the server exits with an error if the file cannot be read. |
+| `WAZUH_INDEXER_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the indexer's TLS certificate, for example the deployment's `root-ca.pem`. Read at startup. The server exits with an error if the file cannot be read. |
 | `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
 
 If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
@@ -393,8 +506,8 @@ Transient manager `GET` requests and indexer search/readiness requests retry bri
 - Node.js 22+
 <!-- content-guard: allow port-reference -->
 - A running Wazuh manager with API access (default port 55000)
-- Wazuh API credentials (username/password)
-- (Optional) Wazuh Indexer (OpenSearch) access for alert queries
+- Wazuh API credentials for a user with the built-in `readonly` role
+- (Optional) A Wazuh Indexer (OpenSearch) user with a read-only role for alert and vulnerability queries
 
 ## MCP Resources
 
@@ -452,7 +565,7 @@ and their compliance framework mappings.
 
 - **Not a write path.** No tool modifies Wazuh state. It cannot restart agents, edit rules, acknowledge alerts, or change configuration. The only writes are JWT authentication and indexer `_search` queries.
 - **Not a replacement for the Wazuh dashboard or SIEM.** It is a query surface for AI clients, not an analyst UI, a data store, or an alerting engine.
-- **Not a hosted service.** It runs locally as a stdio MCP server next to your client. Your Wazuh credentials stay on your machine and in your client's config.
+- **Not a hosted service.** It runs locally as a stdio MCP server next to your client. Your Wazuh credentials stay on your machine, in the wrapper's env file or your client's config.
 - **Not a guarantee against prompt injection.** It delimits attacker-influenced SIEM content and warns the model, which reduces risk but does not eliminate it. Treat tool output as data, not instructions.
 - **Not a way to bypass Wazuh access control.** It uses the credentials you give it and can see only what that account can see.
 

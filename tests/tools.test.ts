@@ -20,7 +20,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
   isError?: boolean;
 }>;
 
-// Capture tool handlers registered via server.tool()
+// Capture tool handlers registered via server.registerTool()
 function captureTools(
   registerFn: (server: McpServer, client: WazuhClient, indexerClient?: WazuhIndexerClient) => void,
   mockClient: Partial<WazuhClient>,
@@ -29,12 +29,7 @@ function captureTools(
   const tools = new Map<string, ToolHandler>();
 
   const mockServer = {
-    tool: (
-      name: string,
-      _description: string,
-      _schema: unknown,
-      handler: ToolHandler
-    ) => {
+    registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
       tools.set(name, handler);
     },
   } as unknown as McpServer;
@@ -65,12 +60,7 @@ function captureDiagnosticTools(
   const tools = new Map<string, ToolHandler>();
 
   const mockServer = {
-    tool: (
-      name: string,
-      _description: string,
-      _schema: unknown,
-      handler: ToolHandler
-    ) => {
+    registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
       tools.set(name, handler);
     },
   } as unknown as McpServer;
@@ -90,12 +80,7 @@ function captureVulnerabilityTools(
   const tools = new Map<string, ToolHandler>();
 
   const mockServer = {
-    tool: (
-      name: string,
-      _description: string,
-      _schema: unknown,
-      handler: ToolHandler
-    ) => {
+    registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
       tools.set(name, handler);
     },
   } as unknown as McpServer;

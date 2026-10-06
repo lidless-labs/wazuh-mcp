@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerReadOnlyTool } from "./annotations.js";
 import { toolErrorResponse } from "./errors.js";
 import { z } from "zod";
 import type { WazuhClient } from "../client.js";
@@ -16,7 +17,8 @@ export function registerRuleTools(
   server: McpServer,
   client: WazuhClient
 ): void {
-  server.tool(
+  registerReadOnlyTool(
+    server,
     "list_rules",
     "List all Wazuh rules with optional level and group filtering",
     {
@@ -71,7 +73,8 @@ export function registerRuleTools(
     }
   );
 
-  server.tool(
+  registerReadOnlyTool(
+    server,
     "get_rule",
     "Get detailed information about a specific Wazuh rule by ID",
     {
@@ -122,7 +125,8 @@ export function registerRuleTools(
     }
   );
 
-  server.tool(
+  registerReadOnlyTool(
+    server,
     "search_rules",
     "Search Wazuh rules by description text",
     {

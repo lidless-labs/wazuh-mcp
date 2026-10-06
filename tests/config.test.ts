@@ -36,6 +36,7 @@ describe("getConfig", () => {
   it("should parse indexer timeout as milliseconds", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_TIMEOUT", "12");
 
@@ -45,6 +46,7 @@ describe("getConfig", () => {
   it("should reject invalid indexer timeout values", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_TIMEOUT", "later");
 
@@ -84,6 +86,7 @@ describe("getConfig", () => {
   it("should verify the indexer TLS by default when its flag is unset", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
 
     expect(getConfig().indexer?.verifySsl).toBe(true);
@@ -92,6 +95,7 @@ describe("getConfig", () => {
   it("should honor an explicit WAZUH_INDEXER_VERIFY_SSL=false", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
     vi.stubEnv("WAZUH_INDEXER_VERIFY_SSL", "false");
 
@@ -101,6 +105,8 @@ describe("getConfig", () => {
   it("should fail fast when the indexer URL is set without a password", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", undefined);
 
     expect(() => getConfig()).toThrow(
       "WAZUH_INDEXER_PASSWORD environment variable is required when WAZUH_INDEXER_URL is set"
@@ -110,10 +116,45 @@ describe("getConfig", () => {
   it("should reject an empty indexer password", () => {
     setRequiredEnv();
     vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
     vi.stubEnv("WAZUH_INDEXER_PASSWORD", "");
 
     expect(() => getConfig()).toThrow(
       "WAZUH_INDEXER_PASSWORD environment variable is required when WAZUH_INDEXER_URL is set"
+    );
+  });
+
+  it("should use the configured indexer username", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "wazuh-mcp-reader");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
+
+    expect(getConfig().indexer).toMatchObject({
+      username: "wazuh-mcp-reader",
+      password: "indexer-secret",
+    });
+  });
+
+  it("should fail fast when the indexer URL is set without a username instead of defaulting to admin", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", undefined);
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
+
+    expect(() => getConfig()).toThrow(
+      "WAZUH_INDEXER_USERNAME environment variable is required when WAZUH_INDEXER_URL is set. Set it to a dedicated Wazuh Indexer user with a read-only role, or unset WAZUH_INDEXER_URL to run without alert and vulnerability tools."
+    );
+  });
+
+  it("should reject an empty indexer username", () => {
+    setRequiredEnv();
+    vi.stubEnv("WAZUH_INDEXER_URL", "https://indexer.example.com:9200");
+    vi.stubEnv("WAZUH_INDEXER_USERNAME", "");
+    vi.stubEnv("WAZUH_INDEXER_PASSWORD", "indexer-secret");
+
+    expect(() => getConfig()).toThrow(
+      "WAZUH_INDEXER_USERNAME environment variable is required when WAZUH_INDEXER_URL is set"
     );
   });
 
