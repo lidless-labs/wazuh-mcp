@@ -16,8 +16,8 @@ vi.mock("../src/http.js", async (importOriginal) => ({
 const TOKEN = randomUUID();
 const env = {
   WAZUH_URL: "https://wazuh.example.com",
-  WAZUH_USERNAME: "test-reader",
-  WAZUH_PASSWORD: "test-upstream-secret",
+  WAZUH_USERNAME: "test-reader-".repeat(3),
+  WAZUH_PASSWORD: "test-upstream-secret-".repeat(2),
   WAZUH_MCP_HTTP_TOKEN: TOKEN,
   WAZUH_MCP_HTTP_PORT: "0",
   WAZUH_MCP_HTTP_HOST: undefined,
@@ -47,9 +47,9 @@ async function start(extra = {}) {
   http = await createHttpServer();
   return `http://localhost:${http.port}`;
 }
-async function connect(url: string) {
+async function connect(url: string, token = TOKEN) {
   const transport = new StreamableHTTPClientTransport(new URL(`${url}/mcp`), {
-    requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+    requestInit: { headers: { Authorization: `Bearer ${token}` } },
   });
   const client = new Client({ name: "http-test", version: "1" });
   connections.push({ client, transport });
@@ -133,6 +133,26 @@ describe("authenticated Streamable HTTP", () => {
     await expect(createHttpServer()).rejects.toThrow(/WAZUH_MCP_HTTP_TOKEN/);
   });
 
+  it("refuses a token shorter than 32 characters", async () => {
+    configure({ WAZUH_MCP_HTTP_TOKEN: "a".repeat(31) });
+    await expect(createHttpServer()).rejects.toThrow(/at least 32 characters/);
+  });
+
+  it.each(["0.0.0.0", "::", "[::]"])("refuses wildcard bind host %s", async (host) => {
+    configure({ WAZUH_MCP_HTTP_HOST: host });
+    await expect(createHttpServer()).rejects.toThrow(/not a wildcard/);
+  });
+
+  it("accepts a token with surrounding whitespace from a secrets file", async () => {
+    const { client } = await connect(await start({ WAZUH_MCP_HTTP_TOKEN: `  ${TOKEN}\n` }));
+    expect((await client.listTools()).tools.some((tool) => tool.name === "get_wazuh_version")).toBe(true);
+  });
+
+  it("refuses padded upstream credentials after trimming", async () => {
+    configure({ WAZUH_MCP_HTTP_TOKEN: `  ${env.WAZUH_PASSWORD}\n` });
+    await expect(createHttpServer()).rejects.toThrow(/must differ from all Wazuh credentials/);
+  });
+
   it.each(["-1", "65536", "abc", "3000suffix", "1.5"])("refuses invalid port %s", async (port) => {
     configure({ WAZUH_MCP_HTTP_PORT: port });
     await expect(createHttpServer()).rejects.toThrow(/WAZUH_MCP_HTTP_PORT/);
@@ -214,22 +234,23 @@ describe("authenticated Streamable HTTP", () => {
     expect(authCount).toBe(2);
   });
 
-  it.each(["indexer-reader", "indexer-secret"])("refuses indexer credential reuse: %s", async (token) => {
+  it.each(["indexer-reader-".repeat(3), "indexer-secret-".repeat(3)])("refuses indexer credential reuse: %s", async (token) => {
     configure({
       WAZUH_INDEXER_URL: "https://indexer.example.com",
-      WAZUH_INDEXER_USERNAME: "indexer-reader", WAZUH_INDEXER_PASSWORD: "indexer-secret",
+      WAZUH_INDEXER_USERNAME: "indexer-reader-".repeat(3), WAZUH_INDEXER_PASSWORD: "indexer-secret-".repeat(3),
       WAZUH_MCP_HTTP_TOKEN: token,
     });
     await expect(createHttpServer()).rejects.toThrow(/WAZUH_MCP_HTTP_TOKEN/);
   });
 
-  it("redacts the HTTP credential from tool errors", async () => {
-    vi.mocked(httpRequest).mockRejectedValue(new Error(`upstream echoed ${TOKEN}`));
-    const { client } = await connect(await start());
+  it("redacts the trimmed HTTP credential from tool errors", async () => {
+    const token = randomUUID();
+    vi.mocked(httpRequest).mockRejectedValue(new Error(`upstream echoed ${token}`));
+    const { client } = await connect(await start({ WAZUH_MCP_HTTP_TOKEN: `  ${token}\n` }), token);
     const result = await client.callTool({ name: "get_wazuh_version", arguments: {} });
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result)).toContain("[REDACTED]");
-    expect(JSON.stringify(result)).not.toContain(TOKEN);
+    expect(JSON.stringify(result)).not.toContain(token);
   });
 
   it("caps initialized sessions and releases capacity on deletion", async () => {
