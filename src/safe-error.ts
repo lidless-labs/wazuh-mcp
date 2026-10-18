@@ -1,3 +1,11 @@
+// Process-wide masking only. Register transport secrets so all tool/resource
+// error paths can redact them without changing the upstream client interface.
+const registeredSecrets = new Set<string>();
+
+export function registerSecret(secret: string): void {
+  if (secret) registeredSecrets.add(secret);
+}
+
 const SECRET_PATTERNS = [
   /(authorization:\s*)(basic|bearer)\s+[a-z0-9._~+/=-]+/gi,
   /\b(basic|bearer)\s+[a-z0-9._~+/=-]+/gi,
@@ -10,7 +18,7 @@ export function sanitizeErrorMessage(message: string, secrets: string[] = []): s
   let sanitized = message;
   // Longest first: a short secret (e.g. the username) that is a substring of a
   // longer one would otherwise split it and leak the remainder.
-  const ordered = secrets.filter(Boolean).sort((a, b) => b.length - a.length);
+  const ordered = [...registeredSecrets, ...secrets].filter(Boolean).sort((a, b) => b.length - a.length);
   for (const secret of ordered) {
     sanitized = sanitized.split(secret).join("[REDACTED]");
   }

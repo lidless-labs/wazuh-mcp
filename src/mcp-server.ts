@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { getConfig, type WazuhConfig } from "./config.js";
 import { WazuhClient } from "./client.js";
@@ -102,9 +103,9 @@ export function createWazuhMcpServer(deps: WazuhServerDeps = {}): McpServer {
   return server;
 }
 
-function stripSchemaFromToolList(transport: StdioServerTransport): void {
+export function stripSchemaFromToolList(transport: Transport): void {
   const send = transport.send.bind(transport);
-  (transport as unknown as { send: typeof transport.send }).send = (message) => {
+  (transport as unknown as { send: typeof transport.send }).send = (message, options) => {
     const tools = (message as { result?: { tools?: unknown } })?.result?.tools;
     if (Array.isArray(tools)) {
       for (const tool of tools) {
@@ -112,7 +113,7 @@ function stripSchemaFromToolList(transport: StdioServerTransport): void {
         if (tool?.outputSchema) delete tool.outputSchema.$schema;
       }
     }
-    return send(message);
+    return send(message, options);
   };
 }
 

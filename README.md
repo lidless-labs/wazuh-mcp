@@ -27,9 +27,105 @@
 
 wazuhctrl is a read-only control CLI for the [Wazuh](https://wazuh.com/) SIEM/XDR platform. The same package ships `wazuh-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) adapter that exposes your Wazuh manager and Wazuh Indexer as MCP tools so Claude, Claude Code, or any MCP-compatible client can investigate alerts, triage agents, and pull vulnerability inventory in plain language. It is read-only by design and security-first: TLS verification is on by default, sensitive fields (agent IPs, full logs, file hashes, command lines) are hidden unless you opt in per call, and attacker-controlled SIEM text is wrapped in untrusted-data markers to blunt prompt injection against the calling model.
 
+## HTTP mode
+
+Run a shared HTTP process from the built repository:
+
+```sh
+npm run build
+node dist/mcp-bin.js --http
+# The existing wazuh-mcp bin also accepts --http.
+```
+
+Keep the usual manager and optional indexer environment variables on the server.
+Generate a separate HTTP token with `openssl rand -hex 32`, then set:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `WAZUH_MCP_HTTP_TOKEN` | Required | Independent bearer token |
+| `WAZUH_MCP_HTTP_HOST` | IPv4 loopback | Listener bind address |
+| `WAZUH_MCP_HTTP_PORT` | `3120` | TCP port, or `0` for a free port |
+
+Startup rejects a missing or blank token and reuse of manager or indexer
+credentials, including passwords and Basic authorization values. Bearer tokens
+are compared with SHA-256 digests and constant-time comparison and registered
+with the error sanitizer.
+
+`/mcp` accepts authenticated Streamable HTTP POST, GET, and DELETE requests.
+`GET /healthz` needs no token and returns only `{"status":"ok"}`.
+The Host header must name the bound host or a loopback alias. A supplied Origin
+must be an HTTP or HTTPS loopback origin. Requests have a 1 MiB body limit,
+a 30-second request timeout, and a 10-second header timeout. The process accepts
+128 sessions and expires sessions idle for 30 minutes on a one-minute timer.
+Active POST requests prevent expiry. An open idle SSE channel does not.
+SIGTERM and SIGINT close all session transports and the listener.
+
+Each HTTP session owns a separate MCP server. The manager client, cached JWT,
+and in-flight login promise are shared across sessions. Concurrent initial
+logins and token refreshes coalesce into one authentication request, and a late
+401 for an old token reuses the replacement token. The indexer client holds only
+upstream configuration. Tools are read-only, with no pending confirmations,
+per-client approvals, deferred visibility sets, or mutable tool result caches.
+Sensitive-field opt-ins belong to each call. Session deletion does not clear
+another session's state or the shared JWT.
+
+Every holder of the HTTP token shares the configured upstream account's read
+privileges. Session IDs route protocol state and do not identify separate users.
+Keep the loopback binding for local clients. Remote access needs a trusted TLS
+proxy or tunnel and network access controls. Preserve an allowed Host header
+through a proxy. This listener provides no TLS, OAuth, or browser CORS access.
+Omit `--http` to retain the existing stdio behavior.
+
+### Claude Code
+
+Export the HTTP token in the environment that launches Claude Code. Add an HTTP
+entry to its MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "wazuh": {
+      "type": "http",
+      "url": "http://localhost:3120/mcp",
+      "headersHelper": "/path/to/helper WAZUH_MCP_HTTP_TOKEN"
+    }
+  }
+}
+```
+
+The executable helper reads the named variable and prints a JSON object with the
+Authorization header. For example, save this as the helper and make it executable:
+
+```js
+#!/usr/bin/env node
+const token = process.env[process.argv[2]]
+if (!token?.trim()) process.exit(1)
+console.log(JSON.stringify({ Authorization: `Bearer ${token}` }))
+```
+
+### Codex
+
+Export `WAZUH_MCP_HTTP_TOKEN` in the environment that launches Codex. Its value
+must match the server's token, without the `Bearer ` prefix:
+
+```toml
+[mcp_servers.wazuh]
+url = "http://localhost:3120/mcp"
+bearer_token_env_var = "WAZUH_MCP_HTTP_TOKEN"
+```
+
+### systemd user service
+
+An example unit is in [docs/systemd/wazuh-mcp-http.service](docs/systemd/wazuh-mcp-http.service).
+Adjust its repository and Node paths, build the repository, and create the
+referenced EnvironmentFile with mode `0600`. Put the manager credentials,
+optional indexer credentials, and independent HTTP token in that file. The unit
+runs the built `dist/mcp-bin.js --http` entry point with `NoNewPrivileges=true`,
+`PrivateTmp=true`, and `UMask=0077`.
+
 ## What it does
 
-wazuhctrl and wazuh-mcp turn a Wazuh SIEM/XDR deployment into typed operator surfaces. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. The CLI starts with status, agent inventory, and diagnostics for shells, cron, and CI. The package ships 28 MCP tools, 3 resources, and 3 guided prompts over stdio. Both surfaces only read from Wazuh: the sole writes they perform are JWT authentication against the manager and `_search` queries against the indexer.
+wazuhctrl and wazuh-mcp turn a Wazuh SIEM/XDR deployment into typed operator surfaces. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. The CLI starts with status, agent inventory, and diagnostics for shells, cron, and CI. The package ships 28 MCP tools, 3 resources, and 3 guided prompts over stdio or Streamable HTTP. Both surfaces only read from Wazuh: the sole writes they perform are JWT authentication against the manager and `_search` queries against the indexer.
 
 ## Installation
 

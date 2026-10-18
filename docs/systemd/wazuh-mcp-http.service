@@ -1,0 +1,21 @@
+[Unit]
+Description=Wazuh MCP HTTP server
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/wazuh-mcp
+ExecStart=/usr/bin/node /opt/wazuh-mcp/dist/mcp-bin.js --http
+# Create this EnvironmentFile with mode 0600.
+EnvironmentFile=%h/.config/wazuh-mcp/http.env
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=default.target
