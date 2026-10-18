@@ -120,3 +120,4 @@ memory/outcome/
 .mcp/
 scripts/*.md
 # <<< brigade gitignore block <<<
+.graphtrail/
