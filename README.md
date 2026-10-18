@@ -42,8 +42,8 @@ Generate a separate HTTP token with `openssl rand -hex 32`, then set:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `WAZUH_MCP_HTTP_TOKEN` | Required | Independent bearer token |
-| `WAZUH_MCP_HTTP_HOST` | IPv4 loopback | Listener bind address |
+| `WAZUH_MCP_HTTP_TOKEN` | Required | Independent bearer token, at least 32 characters after trimming whitespace |
+| `WAZUH_MCP_HTTP_HOST` | IPv4 loopback | Specific listener bind address. Wildcards are refused |
 | `WAZUH_MCP_HTTP_PORT` | `3120` | TCP port, or `0` for a free port |
 
 Startup rejects a missing or blank token and reuse of manager or indexer
