@@ -324,11 +324,12 @@ export interface WazuhHotfix {
 }
 
 // Rootcheck
+// Fields of GET /rootcheck/{agent_id} in Wazuh 4.x (framework/wazuh/core/rootcheck.py).
 export interface WazuhRootcheckResult {
   status?: string;
-  event?: string;
-  old_day?: string;
-  day?: string;
+  log?: string;
+  date_first?: string;
+  date_last?: string;
   cis?: string;
   pci_dss?: string;
 }
