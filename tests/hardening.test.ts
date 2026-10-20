@@ -110,7 +110,7 @@ describe("endpoint inventory fencing", () => {
     getAgentNetwork: vi.fn().mockResolvedValue(paged([{ name: EVIL, type: "ethernet", ipv4: [{ address: EVIL }], ipv6: [EVIL] }])),
     getAgentHotfixes: vi.fn().mockResolvedValue(paged([{ hotfix: EVIL }])),
     getFimFiles: vi.fn().mockResolvedValue(paged([{ file: EVIL, uname: EVIL, gname: EVIL, type: "file" }])),
-    getRootcheck: vi.fn().mockResolvedValue(paged([{ status: "outstanding", event: EVIL }])),
+    getRootcheck: vi.fn().mockResolvedValue(paged([{ status: "outstanding", log: EVIL, date_first: "2026-10-17T18:27:19Z", date_last: "2026-10-17T18:27:19Z" }])),
     getScaPolicies: vi.fn().mockResolvedValue(paged([{ policy_id: "cis", name: EVIL, description: EVIL }])),
     getScaChecks: vi.fn().mockResolvedValue(
       paged([
@@ -203,11 +203,12 @@ describe("endpoint inventory fencing", () => {
     expect(data.files[0].gname).toBe(FENCED);
   });
 
-  it("fences rootcheck events", async () => {
+  it("fences rootcheck log text and keeps the Wazuh 4.x dates", async () => {
     const tools = capture((server) => registerRootcheckTools(server, client));
     const data = await call(tools, "get_rootcheck", { agent_id: "001", limit: 25, offset: 0 });
     expectFencedTool(tools.get("get_rootcheck")!, data);
-    expect(data.findings[0].event).toBe(FENCED);
+    expect(data.findings[0].log).toBe(FENCED);
+    expect(data.findings[0].date_last).toBe("2026-10-17T18:27:19Z");
   });
 
   it("fences SCA policy and check text fields", async () => {

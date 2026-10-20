@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `get_rootcheck` returned findings with only `status`. It read the Wazuh 3.x fields `event`, `day`, and `old_day`, which the 4.x API no longer returns. It now maps `log` (fenced as untrusted data), `date_first`, and `date_last`.
+
 ## [2.1.0] - 2026-10-06
 
 Least-privilege release. The README now sets up read-only Wazuh accounts
