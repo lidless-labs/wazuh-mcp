@@ -54,6 +54,7 @@ export class WazuhClient {
   private readonly password: string;
   private readonly verifySsl: boolean;
   private readonly ca?: string;
+  private readonly tlsServername?: string;
   private readonly timeout: number;
 
   constructor(config: WazuhConfig) {
@@ -62,6 +63,7 @@ export class WazuhClient {
     this.password = config.password;
     this.verifySsl = config.verifySsl;
     this.ca = config.ca;
+    this.tlsServername = config.tlsServername;
     this.timeout = config.timeout;
   }
 
@@ -99,6 +101,7 @@ export class WazuhClient {
           timeoutMs: this.timeout,
           verifySsl: this.verifySsl,
           ca: this.ca,
+          tlsServername: this.tlsServername,
         });
         if (
           attempt < maxAttempts &&

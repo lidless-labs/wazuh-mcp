@@ -105,6 +105,23 @@ export async function runWazuhDiagnostics(
         "WAZUH_INDEXER_VERIFY_SSL is false. TLS certificate verification is disabled for Wazuh Indexer requests.",
     });
   }
+  for (const [envName, label, verifySsl, tlsServername] of [
+    ["WAZUH_TLS_SERVERNAME", "Wazuh manager", config.verifySsl, config.tlsServername],
+    ["WAZUH_INDEXER_TLS_SERVERNAME", "Wazuh Indexer", config.indexer?.verifySsl, config.indexer?.tlsServername],
+  ] as const) {
+    if (tlsServername === undefined || verifySsl === undefined) continue;
+    checks.push(
+      verifySsl
+        ? {
+            status: "ok",
+            message: `${envName} is set. The ${label} certificate identity is checked against that name instead of the URL host.`,
+          }
+        : {
+            status: "warning",
+            message: `${envName} is set but ignored because TLS certificate verification is disabled for ${label} requests.`,
+          }
+    );
+  }
   if (!config.indexer) {
     checks.push({
       status: "warning",

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { parseTlsServername } from "./tls-identity.js";
 
 export interface WazuhConfig {
   url: string;
@@ -8,6 +9,8 @@ export interface WazuhConfig {
   timeout: number;
   /** PEM CA bundle from WAZUH_CA_FILE, used to verify the manager's certificate. */
   ca?: string;
+  /** Name from WAZUH_TLS_SERVERNAME checked against the manager certificate instead of the URL host. */
+  tlsServername?: string;
   indexer?: IndexerConfig;
 }
 
@@ -19,6 +22,8 @@ export interface IndexerConfig {
   timeout: number;
   /** PEM CA bundle from WAZUH_INDEXER_CA_FILE, used to verify the indexer's certificate. */
   ca?: string;
+  /** Name from WAZUH_INDEXER_TLS_SERVERNAME checked against the indexer certificate instead of the URL host. */
+  tlsServername?: string;
 }
 
 function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
@@ -31,6 +36,10 @@ function parseBooleanEnv(value: string | undefined, defaultValue: boolean): bool
 
 function optionalCa(ca: string | undefined): { ca?: string } {
   return ca === undefined ? {} : { ca };
+}
+
+function optionalServername(tlsServername: string | undefined): { tlsServername?: string } {
+  return tlsServername === undefined ? {} : { tlsServername };
 }
 
 function parseTimeoutMs(value: string | undefined, envName: string): number {
@@ -108,6 +117,7 @@ export function getConfig(): WazuhConfig {
   const allowInsecureHttp = parseBooleanEnv(process.env.WAZUH_ALLOW_INSECURE_HTTP, false);
   const managerUrl = parseServiceUrl(url, process.env.WAZUH_URL ? "WAZUH_URL" : "WAZUH_BASE_URL", allowInsecureHttp);
   const ca = readCaFile(process.env.WAZUH_CA_FILE, "WAZUH_CA_FILE");
+  const tlsServername = parseTlsServername(process.env.WAZUH_TLS_SERVERNAME, "WAZUH_TLS_SERVERNAME");
   const timeout = parseTimeoutMs(process.env.WAZUH_TIMEOUT, "WAZUH_TIMEOUT");
 
   let indexer: IndexerConfig | undefined;
@@ -140,8 +150,11 @@ export function getConfig(): WazuhConfig {
       verifySsl: parseBooleanEnv(process.env.WAZUH_INDEXER_VERIFY_SSL, true),
       timeout: parseTimeoutMs(process.env.WAZUH_INDEXER_TIMEOUT, "WAZUH_INDEXER_TIMEOUT"),
       ...optionalCa(readCaFile(process.env.WAZUH_INDEXER_CA_FILE, "WAZUH_INDEXER_CA_FILE")),
+      ...optionalServername(
+        parseTlsServername(process.env.WAZUH_INDEXER_TLS_SERVERNAME, "WAZUH_INDEXER_TLS_SERVERNAME")
+      ),
     };
   }
 
-  return { url: managerUrl, username, password, verifySsl, timeout, ...optionalCa(ca), indexer };
+  return { url: managerUrl, username, password, verifySsl, timeout, ...optionalCa(ca), ...optionalServername(tlsServername), indexer };
 }
