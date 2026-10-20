@@ -1,6 +1,7 @@
 import http from "node:http";
 import https from "node:https";
 import { Buffer } from "node:buffer";
+import { buildTlsIdentityOptions } from "./tls-identity.js";
 
 export interface HttpRequestOptions {
   method: string;
@@ -10,6 +11,11 @@ export interface HttpRequestOptions {
   verifySsl: boolean;
   /** PEM CA bundle to trust for https targets (in addition to verifySsl). */
   ca?: string;
+  /**
+   * Name to check the certificate identity against instead of the URL host.
+   * Ignored unless verifySsl is true and the target is https.
+   */
+  tlsServername?: string;
   maxResponseBytes?: number;
 }
 
@@ -77,6 +83,9 @@ export async function httpRequest(url: string, options: HttpRequestOptions): Pro
         headers: options.headers,
         rejectUnauthorized: isHttps ? options.verifySsl : undefined,
         ...(isHttps && options.ca !== undefined ? { ca: options.ca } : {}),
+        ...(isHttps && options.verifySsl && options.tlsServername !== undefined
+          ? buildTlsIdentityOptions(options.tlsServername)
+          : {}),
       },
       (response) => {
         const rawLength = response.headers?.["content-length"];

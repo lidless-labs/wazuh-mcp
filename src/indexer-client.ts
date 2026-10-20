@@ -66,6 +66,7 @@ export class WazuhIndexerClient {
   private readonly authHeader: string;
   private readonly verifySsl: boolean;
   private readonly ca?: string;
+  private readonly tlsServername?: string;
   private readonly timeout: number;
   private readonly errorSecrets: string[];
 
@@ -75,6 +76,7 @@ export class WazuhIndexerClient {
     this.authHeader = "Basic " + basicPayload;
     this.verifySsl = config.verifySsl;
     this.ca = config.ca;
+    this.tlsServername = config.tlsServername;
     this.timeout = config.timeout ?? 30_000;
     this.errorSecrets = [config.username, config.password, this.authHeader, basicPayload];
   }
@@ -108,6 +110,7 @@ export class WazuhIndexerClient {
           timeoutMs: this.timeout,
           verifySsl: this.verifySsl,
           ca: this.ca,
+          tlsServername: this.tlsServername,
         });
         if (
           attempt < maxAttempts &&

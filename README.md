@@ -243,6 +243,23 @@ The API makes the `wazuh` user the owner of both files when it starts, and the c
 
 On a package install, the root CA is `/etc/filebeat/certs/root-ca.pem` on the server node, and `filebeat.pem` and `filebeat-key.pem` in that directory are a server certificate signed by it. That directory is readable only by root, so copy those files with `sudo`.
 
+#### Reaching Wazuh by an address that is not in its certificate
+
+Wazuh's default certificates are issued for loopback names only. The indexer node certificate lists `IP:127.0.0.1` as its only subject alternative name, and the manager API's default self-signed certificate lists only `DNS:localhost`. A client that reaches either service over the LAN, for example at `https://192.0.2.10:9200`, cannot verify the certificate, and the usual workaround is `WAZUH_VERIFY_SSL=false` or `WAZUH_INDEXER_VERIFY_SSL=false`, which turns off all verification.
+
+Set `WAZUH_TLS_SERVERNAME` and `WAZUH_INDEXER_TLS_SERVERNAME` instead. The connection still goes to the host in the URL, and the certificate chain is still checked against the system roots or the file named by `WAZUH_CA_FILE` and `WAZUH_INDEXER_CA_FILE`. Only the identity check changes: the certificate must match the configured name rather than the URL host.
+
+```bash
+WAZUH_URL=https://192.0.2.10:55000
+WAZUH_CA_FILE=/path/to/root-ca.pem
+WAZUH_TLS_SERVERNAME=localhost
+WAZUH_INDEXER_URL=https://192.0.2.10:9200
+WAZUH_INDEXER_CA_FILE=/path/to/root-ca.pem
+WAZUH_INDEXER_TLS_SERVERNAME=127.0.0.1
+```
+
+When the name is a DNS name it is also sent as the TLS SNI value. An IP address is never sent as SNI, because Node rejects it there. The setting has no effect while verification is disabled; `diagnose_wazuh_connection` reports a warning if you set one with `WAZUH_VERIFY_SSL=false` or `WAZUH_INDEXER_VERIFY_SSL=false`. This trusts anyone who holds a certificate for the configured name that your CA signed, so use the narrowest CA file you can.
+
 ### Wazuh API user with the `readonly` role
 
 The built-in `readonly` role reads agents, groups, rules, decoders, SCA, FIM, rootcheck, syscollector inventory, and manager and cluster status, configuration, and logs. That covers every manager tool. It also reads CDB lists, CIS-CAT results, MITRE data, and the API configuration, which no tool uses, and it changes nothing. It has no `security:*` permissions, so it cannot read or change other users, roles, policies, or the security configuration. Like every API user, it can still read its own account and policies at `/security/users/me` and `/security/users/me/policies`. New API users start with `allow_run_as` disabled, which is what this server needs. Sign in once as an existing API administrator (`wazuh` or `wazuh-wui`) to create the user:
@@ -529,6 +546,7 @@ Set the following environment variables:
 | `WAZUH_PASSWORD` | Yes | - | API password |
 | `WAZUH_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
 | `WAZUH_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the manager's TLS certificate (private CA or self-signed). Read at startup. The server exits with an error if the file cannot be read. Prefer this over `WAZUH_VERIFY_SSL=false`. See [TLS verification](#tls-verification) for the Docker deployment's root CA and the manager's default self-signed certificate. |
+| `WAZUH_TLS_SERVERNAME` | No | - | Name to check the manager certificate against instead of the host in `WAZUH_URL`: an IPv4 address, IPv6 address, or DNS name, with no scheme, port, or path (253 characters at most). The certificate chain is still verified. Ignored when `WAZUH_VERIFY_SSL` is `false`, and `diagnose_wazuh_connection` reports that. See [TLS verification](#tls-verification). |
 | `WAZUH_ALLOW_INSECURE_HTTP` | No | `false` | Allow plain `http://` for `WAZUH_URL` and `WAZUH_INDEXER_URL`. When unset, `http://` URLs are rejected at startup. When enabled and in use, the server prints a startup warning to stderr. Trusted lab networks only. |
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
 | `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
@@ -548,6 +566,7 @@ Wazuh 4.x stores alerts and vulnerability inventory in the Wazuh Indexer (OpenSe
 | `WAZUH_INDEXER_PASSWORD` | Yes, when `WAZUH_INDEXER_URL` is set | - | Indexer password. The server fails fast at startup if `WAZUH_INDEXER_URL` is set without it. |
 | `WAZUH_INDEXER_VERIFY_SSL` | No | `true` | Verifies SSL certificates by default. Set to `false` (also accepts `0`/`no`/`off`) to disable verification for trusted self-signed lab environments only. |
 | `WAZUH_INDEXER_CA_FILE` | No | - | Path to a PEM CA bundle used to verify the indexer's TLS certificate, for example the deployment's `root-ca.pem`. Read at startup. The server exits with an error if the file cannot be read. |
+| `WAZUH_INDEXER_TLS_SERVERNAME` | No | - | Name to check the indexer certificate against instead of the host in `WAZUH_INDEXER_URL`. Same format and rules as `WAZUH_TLS_SERVERNAME`. Ignored when `WAZUH_INDEXER_VERIFY_SSL` is `false`. |
 | `WAZUH_INDEXER_TIMEOUT` | No | `30` | Indexer request timeout in seconds. Must be a positive integer. |
 
 If `WAZUH_INDEXER_URL` is not set, alert and vulnerability tools will return a helpful configuration message. All other tools (agents, rules, decoders, version) work without the indexer.
