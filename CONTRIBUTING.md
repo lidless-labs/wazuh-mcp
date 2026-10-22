@@ -14,7 +14,7 @@ wazuh-mcp is a read-only [Model Context Protocol](https://modelcontextprotocol.i
 ## What needs a conversation first
 
 - **Any state-changing endpoint or tool.** This server is read-only by design. The only writes are JWT authentication against the manager and `_search` against the indexer. Adding anything that mutates Wazuh state (restart an agent, edit a rule, acknowledge an alert) requires an issue and explicit maintainer sign-off before you write code. Do not start with the code.
-- **Changes to redaction or TLS defaults.** Sensitive fields stay hidden unless opted in per call; TLS verification stays on by default; `get_manager_config` stays gated behind `WAZUH_ALLOW_SENSITIVE_CONFIG`. Loosening any of these needs a discussion.
+- **Changes to redaction or TLS defaults.** Sensitive fields stay hidden unless opted in per call; TLS verification stays on by default; `get_manager_config` keeps redacting credential-bearing keys. Loosening any of these needs a discussion.
 - **New runtime dependencies.** The server runs on `@modelcontextprotocol/sdk` and `zod` only. Adding a third needs a strong reason.
 - **Breaking changes** to tool names, response shapes, or environment variable names.
 

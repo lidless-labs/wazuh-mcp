@@ -33,12 +33,16 @@ describe("MCP tool annotations", () => {
     close = undefined;
   });
 
-  it("defines the shared annotations once as read-only and open-world", () => {
-    expect(READ_ONLY_TOOL_ANNOTATIONS).toEqual({ readOnlyHint: true, openWorldHint: true });
+  it("defines the shared annotations once as read-only, idempotent and open-world", () => {
+    expect(READ_ONLY_TOOL_ANNOTATIONS).toEqual({
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
     expect(Object.isFrozen(READ_ONLY_TOOL_ANNOTATIONS)).toBe(true);
   });
 
-  it("lists exactly 28 tools, each annotated readOnlyHint true and openWorldHint true", async () => {
+  it("lists exactly 28 tools, each annotated readOnlyHint, idempotentHint and openWorldHint true", async () => {
     const listed = await listToolsOverSdk();
     close = listed.close;
     const { tools } = listed;
@@ -48,7 +52,10 @@ describe("MCP tool annotations", () => {
 
     const unannotated = tools
       .filter(
-        (tool) => tool.annotations?.readOnlyHint !== true || tool.annotations?.openWorldHint !== true
+        (tool) =>
+          tool.annotations?.readOnlyHint !== true ||
+          tool.annotations?.idempotentHint !== true ||
+          tool.annotations?.openWorldHint !== true
       )
       .map((tool) => tool.name);
     expect(unannotated).toEqual([]);

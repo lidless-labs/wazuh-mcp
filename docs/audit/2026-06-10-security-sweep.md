@@ -1,6 +1,6 @@
 # security-sweep report: wazuh-mcp (2026-06-10)
 
-Scope: full repo at `/home/clawdbot/repos/wazuh-mcp` (MCP server holding Wazuh SIEM credentials, exposing query tools to LLM agents). Prompt-injection-to-tool-abuse and credential handling explicitly in scope. Audit was read-only except this report.
+Scope: full repo at `<repo>` (MCP server holding Wazuh SIEM credentials, exposing query tools to LLM agents). Prompt-injection-to-tool-abuse and credential handling explicitly in scope. Audit was read-only except this report.
 
 ## Verdict
 

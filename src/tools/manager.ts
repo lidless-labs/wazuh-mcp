@@ -7,21 +7,11 @@ import {
   UNTRUSTED_DATA_NOTE,
   formatToolResponse,
   includeDescriptionSchema,
-  includeSensitiveConfigSchema,
   markUntrusted,
   paginationMetadata,
 } from "./output.js";
 import { redactSensitiveConfig } from "./redaction.js";
 import { limitSchema, managerSectionSchema, offsetSchema, optionalSearchTextSchema } from "./schemas.js";
-
-// Raw (unredacted) manager configuration may only be exposed when the operator
-// explicitly opts in server-side. A model-supplied tool argument can never
-// enable it on its own. Defaults to off (always redact).
-function parseAllowSensitiveConfig(): boolean {
-  const value = process.env.WAZUH_ALLOW_SENSITIVE_CONFIG;
-  if (value === undefined) return false;
-  return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
-}
 
 export function registerManagerTools(
   server: McpServer,
@@ -83,28 +73,21 @@ export function registerManagerTools(
   registerReadOnlyTool(
     server,
     "get_manager_config",
-    "Get the active Wazuh manager configuration for a specific section",
+    "Get the active Wazuh manager configuration for a specific section. Credential-bearing values (passwords, tokens, keys, certificates) are always redacted.",
     {
       section: managerSectionSchema
         .optional()
         .describe("Configuration section to retrieve. Omit to get the full configuration."),
-      include_sensitive_config: includeSensitiveConfigSchema,
     },
-    async ({ section, include_sensitive_config = false }) => {
+    async ({ section }) => {
       try {
         const params: Record<string, string | number> = {};
         if (section) params.section = section;
 
-        // Exposing raw/sensitive configuration is gated on a server-side env
-        // flag, not the model-supplied argument. If WAZUH_ALLOW_SENSITIVE_CONFIG
-        // is not enabled, always redact regardless of include_sensitive_config.
-        const sensitiveConfigAllowed = parseAllowSensitiveConfig();
-        const includeSensitive = sensitiveConfigAllowed && include_sensitive_config;
-
+        // Credential-bearing keys are always redacted. No argument or
+        // environment setting returns them to the caller.
         const response = await client.getManagerConfig(params);
-        const config = includeSensitive
-          ? response.data
-          : redactSensitiveConfig(response.data);
+        const config = redactSensitiveConfig(response.data);
 
         return {
           content: [
@@ -114,7 +97,7 @@ export function registerManagerTools(
                 configuration: config,
                 section,
                 output: {
-                  sensitive_config_included: includeSensitive,
+                  sensitive_config_included: false,
                 },
               }),
             },

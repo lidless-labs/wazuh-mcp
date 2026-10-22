@@ -25,7 +25,7 @@ wazuh-mcp is a read-only MCP server that an AI client uses to query a Wazuh SIEM
 ## In scope
 
 - **Credential or token leaks** in tool responses, error messages, or diagnostics. Every error returned to the client must pass through `src/safe-error.ts`; a path that returns a raw Wazuh API or HTTP error (which can carry a JWT or basic-auth header) is a vulnerability.
-- **Redaction bypasses.** Cases where agent IPs, alert `full_log`, raw event `data`, process command lines, file hashes, or secret-like manager config reach the client without the documented opt-in, or where `get_manager_config` returns sensitive values while `WAZUH_ALLOW_SENSITIVE_CONFIG` is unset/`false`.
+- **Redaction bypasses.** Cases where agent IPs, alert `full_log`, raw event `data`, process command lines, file hashes, or secret-like manager config reach the client without the documented opt-in, or where `get_manager_config` returns credential-bearing values.
 - **Prompt-injection delimiting failures.** Untrusted SIEM content that reaches the model without the `<untrusted_siem_data>` markers and `output.untrusted_data_note` warning.
 - **TLS downgrade.** Cases where certificate verification is silently disabled when neither `WAZUH_VERIFY_SSL` nor `WAZUH_INDEXER_VERIFY_SSL` is set to a false value.
 - **Input validation bypass.** Path injection through agent, alert, group, or SCA policy identifiers, or unbounded pagination/search input reaching Wazuh.

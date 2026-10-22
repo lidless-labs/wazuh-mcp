@@ -38,9 +38,9 @@ Report actual results. If anything fails, report the failure verbatim and do not
 - CI (`.github/workflows/ci.yml`) runs typecheck, build, test, `npm audit --omit=dev`, and pack:check on Node 22 and 24. npm publishing runs from `.github/workflows/publish.yml` on `v*` tags. Match CI locally before declaring done.
 
 ## Rules by Trigger
-- Touching auth, TLS, or config parsing: keep secure defaults intact. TLS verification stays on by default; sensitive fields (agent IPs, full logs, hashes, command lines) stay hidden unless opted in per call; `get_manager_config` redaction stays enforced server side via `WAZUH_ALLOW_SENSITIVE_CONFIG`.
+- Touching auth, TLS, or config parsing: keep secure defaults intact. TLS verification stays on by default; sensitive fields (agent IPs, full logs, hashes, command lines) stay hidden unless opted in per call; `get_manager_config` always redacts credential-bearing keys, with no argument or setting that returns them. `WazuhClient` exposes fixed read methods only; its request path stays private and GET-only.
 - Touching a list tool: paginated responses carry both a nested `pagination` object and legacy top-level `total`/`limit`/`offset`. Keep both.
-- Touching tool output: responses are size-capped by `WAZUH_MCP_MAX_RESPONSE_BYTES` (default 250000). Oversized output must become a truncated JSON preview with `response_truncated` metadata, never an error.
+- Touching tool output: responses are size-capped by `WAZUH_MCP_MAX_RESPONSE_BYTES` (default 90000). Oversized output must become a truncated JSON preview with `response_truncated` metadata, never an error.
 - Adding alert or vulnerability features: Wazuh 4.x serves those from the indexer, not the manager REST API. Manager-only setups legitimately lack them; preserve the graceful configuration message.
 - Adding files in the repo root: `.gitignore` ignores `*.js` and `*.d.ts` everywhere except `tsup.config.ts` and `vitest.config.ts`. Verify new files are actually tracked with `git status`.
 
