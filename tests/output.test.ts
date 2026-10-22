@@ -41,6 +41,29 @@ describe("formatToolResponse", () => {
     expect(formatToolResponse({ ok: true })).toBe(JSON.stringify({ ok: true }, null, 2));
   });
 
+  it("should keep a default-configured response under 100,000 bytes", () => {
+    vi.stubEnv("WAZUH_MCP_MAX_RESPONSE_BYTES", undefined);
+
+    const text = formatToolResponse({ items: ["x".repeat(500_000)] });
+    const parsed = JSON.parse(text) as {
+      output: { response_truncated: boolean; max_response_bytes: number };
+    };
+
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThan(100_000);
+    expect(parsed.output.response_truncated).toBe(true);
+    expect(parsed.output.max_response_bytes).toBe(90_000);
+  });
+
+  it("should honor an override above the default", () => {
+    vi.stubEnv("WAZUH_MCP_MAX_RESPONSE_BYTES", "250000");
+
+    const payload = { items: ["x".repeat(150_000)] };
+    const text = formatToolResponse(payload);
+
+    expect(text).toBe(JSON.stringify(payload, null, 2));
+    expect(Buffer.byteLength(text, "utf8")).toBeGreaterThan(100_000);
+  });
+
   it("should return truncation metadata when a response exceeds the byte limit", () => {
     vi.stubEnv("WAZUH_MCP_MAX_RESPONSE_BYTES", "200");
 

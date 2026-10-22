@@ -42,6 +42,32 @@ export class WazuhAuthenticationError extends WazuhClientError {
   }
 }
 
+// Manager API collections the client may read. Every request goes through
+// `request()`, which accepts only GET against these top-level paths, so the
+// fixed read methods below are the only way to reach the manager.
+const READABLE_ENDPOINT_ROOTS: ReadonlySet<string> = new Set([
+  "agents",
+  "alerts",
+  "decoders",
+  "groups",
+  "manager",
+  "rootcheck",
+  "rules",
+  "sca",
+  "syscheck",
+  "syscollector",
+]);
+
+function isReadableEndpoint(endpoint: string): boolean {
+  if (endpoint === "/") return true;
+  if (!endpoint.startsWith("/") || endpoint.includes("?") || endpoint.includes("#")) return false;
+  const segments = endpoint.slice(1).split("/");
+  // Reject dot segments (raw or percent-encoded) so a path cannot climb out of
+  // an allowed collection.
+  if (segments.some((segment) => /^(\.|%2e){1,2}$/i.test(segment))) return false;
+  return READABLE_ENDPOINT_ROOTS.has(segments[0]);
+}
+
 export class WazuhClient {
   private static readonly retryStatuses = new Set([429, 502, 503, 504]);
 
@@ -192,12 +218,20 @@ export class WazuhClient {
     }
   }
 
-  async request<T>(
-    method: string,
+  private async request<T>(
+    method: "GET",
     endpoint: string,
-    params?: Record<string, string | number>,
-    body?: unknown
+    params?: Record<string, string | number>
   ): Promise<T> {
+    // Defense in depth: the public surface is fixed read methods, but the
+    // verb and path are still checked here so a future caller cannot widen it.
+    if (method !== "GET") {
+      throw new WazuhClientError("Only GET requests are permitted");
+    }
+    if (!isReadableEndpoint(endpoint)) {
+      throw new WazuhClientError("Endpoint is not permitted");
+    }
+
     await this.ensureAuthenticated();
 
     const url = new URL(`${this.baseUrl}${endpoint}`);
@@ -218,8 +252,7 @@ export class WazuhClient {
     const response = await this.send(url.toString(), {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
-      retryable: method === "GET",
+      retryable: true,
     });
 
     // Auto-refresh token on 401
@@ -233,8 +266,7 @@ export class WazuhClient {
       const retryResponse = await this.send(url.toString(), {
         method,
         headers,
-        body: body ? JSON.stringify(body) : undefined,
-        retryable: method === "GET",
+        retryable: true,
       });
 
       if (!retryResponse.ok) {
@@ -258,7 +290,7 @@ export class WazuhClient {
     return (await response.json()) as T;
   }
 
-  async get<T>(
+  private async get<T>(
     endpoint: string,
     params?: Record<string, string | number>
   ): Promise<T> {

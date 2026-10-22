@@ -144,9 +144,15 @@ describe("Resources", () => {
       expect(mockClient.getRules).toHaveBeenCalledWith({ limit: 100, sort: "-level" });
       expect(data).toEqual({
         rules: [
-          { id: 100100, description: "Critical rule", level: 15, groups: ["attack"] },
+          {
+            id: 100100,
+            description: "<untrusted_siem_data>Critical rule</untrusted_siem_data>",
+            level: 15,
+            groups: ["<untrusted_siem_data>attack</untrusted_siem_data>"],
+          },
         ],
         total: 1,
+        output: { untrusted_data_note: UNTRUSTED_DATA_NOTE },
       });
     });
   });

@@ -562,7 +562,7 @@ describe("single-flight manager authentication", () => {
     });
 
     const client = new WazuhClient(config);
-    await Promise.all(Array.from({ length: 5 }, () => client.get("/agents")));
+    await Promise.all(Array.from({ length: 5 }, () => client.getAgents()));
 
     const authCalls = requestSpy.mock.calls.filter(([url]) => isAuth(url));
     expect(authCalls).toHaveLength(1);
@@ -594,7 +594,7 @@ describe("single-flight manager authentication", () => {
     await client.authenticate();
     expect(authCount).toBe(1);
 
-    await Promise.all(Array.from({ length: 5 }, () => client.get("/agents")));
+    await Promise.all(Array.from({ length: 5 }, () => client.getAgents()));
 
     expect(authCount).toBe(2);
     expect(apiAuthHeaders.filter((header) => header === "Bearer token-1")).toHaveLength(5);
@@ -607,7 +607,7 @@ describe("single-flight manager authentication", () => {
       return mockResponse({}, 401);
     });
     const client = new WazuhClient(config);
-    const results = await Promise.allSettled(Array.from({ length: 5 }, () => client.get("/agents")));
+    const results = await Promise.allSettled(Array.from({ length: 5 }, () => client.getAgents()));
 
     expect(results.every((result) => result.status === "rejected")).toBe(true);
     expect(requestSpy.mock.calls.filter(([url]) => isAuth(url))).toHaveLength(1);
@@ -618,7 +618,7 @@ describe("single-flight manager authentication", () => {
         ? mockResponse({ data: { token: "ok" } })
         : mockResponse({ data: { affected_items: [], total_affected_items: 0 } })
     );
-    await expect(client.get("/agents")).resolves.toBeDefined();
+    await expect(client.getAgents()).resolves.toBeDefined();
   });
 
   it("clears the in-flight promise after a failed auth so the next call retries", async () => {

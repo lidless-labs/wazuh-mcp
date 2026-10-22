@@ -1,7 +1,10 @@
 import { Buffer } from "node:buffer";
 import { z } from "zod";
 
-const DEFAULT_MAX_TOOL_RESPONSE_BYTES = 250_000;
+// Kept below 100,000 so the truncation envelope fits clients that refuse a
+// larger direct tool result. Direct stdio users can raise it with
+// WAZUH_MCP_MAX_RESPONSE_BYTES.
+const DEFAULT_MAX_TOOL_RESPONSE_BYTES = 90_000;
 // Smallest cap honored, so the truncation envelope itself always fits.
 const MIN_MAX_TOOL_RESPONSE_BYTES = 1024;
 
@@ -34,13 +37,6 @@ export const includeDescriptionSchema = z
   .boolean()
   .default(false)
   .describe("Include full log descriptions in the response");
-
-export const includeSensitiveConfigSchema = z
-  .boolean()
-  .default(false)
-  .describe(
-    "Request sensitive (unredacted) manager configuration values. Only honored when the server-side WAZUH_ALLOW_SENSITIVE_CONFIG flag is enabled; otherwise values are always redacted."
-  );
 
 // SIEM content such as alert full logs, alert rule descriptions, raw event
 // data, and manager log lines originates on monitored endpoints. Anyone who

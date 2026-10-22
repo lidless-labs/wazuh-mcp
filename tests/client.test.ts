@@ -129,7 +129,7 @@ describe("WazuhClient", () => {
         })
       );
 
-      await client.get("/agents");
+      await client.getAgents();
       // First call: auth, second call: actual request
       expect(requestSpy).toHaveBeenCalledTimes(2);
     });
@@ -142,7 +142,7 @@ describe("WazuhClient", () => {
         })
       );
 
-      await client.get("/agents", { limit: 10, status: "active" });
+      await client.getAgents({ limit: 10, status: "active" });
 
       const calledUrl = requestSpy.mock.calls[1][0] as string;
       expect(calledUrl).toContain("limit=10");
@@ -157,7 +157,7 @@ describe("WazuhClient", () => {
         })
       );
 
-      await client.get("/agents");
+      await client.getAgents();
 
       expect(requestSpy.mock.calls[1][1]).toEqual(
         expect.objectContaining({
@@ -187,7 +187,7 @@ describe("WazuhClient", () => {
         })
       );
 
-      const result = await client.get("/agents");
+      const result = await client.getAgents();
       expect(result).toEqual({
         data: { affected_items: [], total_affected_items: 0 },
         error: 0,
@@ -207,7 +207,7 @@ describe("WazuhClient", () => {
         )
       );
 
-      await client.get("/agents").then(
+      await client.getAgents().then(
         () => {
           throw new Error("Expected request to fail");
         },
@@ -229,7 +229,7 @@ describe("WazuhClient", () => {
         )
       );
 
-      await client.get("/agents").then(
+      await client.getAgents().then(
         () => {
           throw new Error("Expected request to fail");
         },
@@ -250,7 +250,7 @@ describe("WazuhClient", () => {
         })
       );
 
-      const result = await client.get("/agents");
+      const result = await client.getAgents();
 
       expect(result).toEqual({
         data: { affected_items: [], total_affected_items: 0 },
@@ -273,7 +273,7 @@ describe("WazuhClient", () => {
       // Retry also fails
       requestSpy.mockResolvedValueOnce(mockFetchResponse({}, 403));
 
-      await expect(client.get("/agents")).rejects.toThrow(WazuhClientError);
+      await expect(client.getAgents()).rejects.toThrow(WazuhClientError);
     });
   });
 
@@ -358,6 +358,63 @@ describe("WazuhClient", () => {
         await call();
         expect(requestSpy.mock.lastCall?.[0]).toBe(expectedUrl);
       }
+    });
+  });
+
+  describe("read-only request surface", () => {
+    type RawRequest = (
+      method: string,
+      endpoint: string,
+      params?: Record<string, string | number>,
+      body?: unknown
+    ) => Promise<unknown>;
+
+    it("does not expose a generic request or get method on the public type", () => {
+      // Type-level check: these lines stop compiling under a tsc pass that
+      // includes the tests if either method becomes public again.
+      // @ts-expect-error request() is private
+      void client.request;
+      // @ts-expect-error get() is private
+      void client.get;
+    });
+
+    it("rejects any verb other than GET before sending anything", async () => {
+      const raw = (client as unknown as { request: RawRequest }).request.bind(client);
+      for (const verb of ["DELETE", "PUT", "POST", "PATCH"]) {
+        await expect(raw(verb, "/agents", undefined, { x: 1 })).rejects.toThrow(
+          "Only GET requests are permitted"
+        );
+      }
+      expect(requestSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects endpoints outside the readable collections before sending anything", async () => {
+      const raw = (client as unknown as { request: RawRequest }).request.bind(client);
+      const blocked = [
+        "/security/users",
+        "/security/user/authenticate",
+        "/cluster/restart",
+        "/active-response",
+        "/agents/../security/users",
+        "/agents/%2e%2e/security",
+        "/agents?x=1",
+        "agents",
+        "",
+      ];
+      for (const endpoint of blocked) {
+        await expect(raw("GET", endpoint)).rejects.toThrow("Endpoint is not permitted");
+      }
+      expect(requestSpy).not.toHaveBeenCalled();
+    });
+
+    it("still reaches the manager root and allowed collections", async () => {
+      const raw = (client as unknown as { request: RawRequest }).request.bind(client);
+      requestSpy.mockResolvedValueOnce(
+        mockFetchResponse({ data: { token: mockToken }, error: 0, message: "ok" })
+      );
+      requestSpy.mockResolvedValue(mockFetchResponse({ data: {}, error: 0 }));
+      await expect(raw("GET", "/")).resolves.toBeDefined();
+      await expect(raw("GET", "/manager/logs", { limit: 1 })).resolves.toBeDefined();
     });
   });
 

@@ -455,7 +455,7 @@ npm test       # Run tests
 
 ## MCP Tools
 
-All 28 tools are read-only, and each one declares the MCP tool annotations `readOnlyHint: true` and `openWorldHint: true`. The tools query only your own Wazuh deployment, but most of what they return originates on monitored endpoints (see [Untrusted SIEM Content](#untrusted-siem-content)), so clients should treat the output as untrusted.
+All 28 tools are read-only, and each one declares the MCP tool annotations `readOnlyHint: true`, `idempotentHint: true`, and `openWorldHint: true`. The tools query only your own Wazuh deployment, but most of what they return originates on monitored endpoints (see [Untrusted SIEM Content](#untrusted-siem-content)), so clients should treat the output as untrusted.
 
 ### Agent Tools
 
@@ -549,8 +549,7 @@ Set the following environment variables:
 | `WAZUH_TLS_SERVERNAME` | No | - | Name to check the manager certificate against instead of the host in `WAZUH_URL`: an IPv4 address, IPv6 address, or DNS name, with no scheme, port, or path (253 characters at most). The certificate chain is still verified. Ignored when `WAZUH_VERIFY_SSL` is `false`, and `diagnose_wazuh_connection` reports that. See [TLS verification](#tls-verification). |
 | `WAZUH_ALLOW_INSECURE_HTTP` | No | `false` | Allow plain `http://` for `WAZUH_URL` and `WAZUH_INDEXER_URL`. When unset, `http://` URLs are rejected at startup. When enabled and in use, the server prints a startup warning to stderr. Trusted lab networks only. |
 | `WAZUH_TIMEOUT` | No | `30` | Request timeout in seconds. Must be a positive integer. |
-| `WAZUH_ALLOW_SENSITIVE_CONFIG` | No | `false` | Server-side gate for `get_manager_config`. When unset/`false`, sensitive configuration values are always redacted even if the tool's `include_sensitive_config` argument is `true`. Set to `true` (also accepts `1`/`yes`/`on`) to allow unredacted output when explicitly requested. |
-| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `250000` | Maximum MCP tool response size before returning a truncated preview with metadata. Values below `1024` are raised to `1024`. The truncated envelope itself always fits within the cap. |
+| `WAZUH_MCP_MAX_RESPONSE_BYTES` | No | `90000` | Maximum MCP tool response size before returning a truncated preview with metadata. Values below `1024` are raised to `1024`. The truncated envelope itself always fits within the cap. The default stays under 100,000 bytes so clients that refuse larger direct results still get the truncated preview. |
 | `WAZUH_MCP_MAX_STDIO_BUFFER_BYTES` | No | `8388608` (8 MiB) | Maximum stdio read-buffer size in bytes. Must be a positive integer. A single client message exceeding it makes the transport error and close. |
 
 Alternative variable names `WAZUH_BASE_URL` and `WAZUH_USER` are also supported.
@@ -588,11 +587,11 @@ Several tools return minimized output by default to avoid exposing raw logs, IPs
 | `get_agent_processes` | Process command lines and arguments | `include_command: true` |
 | `get_fim_files` | MD5 and SHA-256 hashes | `include_hashes: true` |
 | `get_manager_logs` | Full log descriptions | `include_description: true` |
-| `get_manager_config` | Secret-like config values | `include_sensitive_config: true` (only honored when the server-side `WAZUH_ALLOW_SENSITIVE_CONFIG` flag is enabled; otherwise always redacted) |
+| `get_manager_config` | Secret-like config values | None. Credential-bearing keys are always redacted. |
 
 ### Untrusted SIEM Content
 
-Alert, log, and inventory fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) or control a process, package, file, or hostname on it controls the text that lands in `full_log`, alert `rule_description`, `agent_name`, `location`, and `decoder`, raw event `data`, manager log descriptions, agent names and OS fields, syscollector process/package/port/interface/hotfix fields, FIM paths and owners, rootcheck log text, SCA policy and check text, and vulnerability package and description fields. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
+Alert, log, and inventory fields originate on monitored endpoints: anyone who can write a log line to a monitored host (a failed SSH login with a crafted username, a web request path, a syslog message) or control a process, package, file, or hostname on it controls the text that lands in `full_log`, alert `rule_description`, `agent_name`, `location`, and `decoder`, raw event `data`, rule and decoder text, manager log descriptions, agent names and OS fields, syscollector process/package/port/interface/hotfix fields, FIM paths and owners, rootcheck log text, SCA policy and check text, and vulnerability package and description fields. To blunt prompt injection against the calling agent, the server wraps those values in `<untrusted_siem_data>...</untrusted_siem_data>` markers, includes an `output.untrusted_data_note` warning in affected responses, and states in the tool descriptions that the content is attacker-influenced data, never instructions to follow.
 
 ### Input Validation
 
