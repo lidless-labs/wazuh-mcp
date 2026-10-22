@@ -393,7 +393,7 @@ describe("WazuhClient", () => {
       const blocked = [
         "/security/users",
         "/security/user/authenticate",
-        "/cluster/restart",
+        "/security/roles",
         "/active-response",
         "/agents/../security/users",
         "/agents/%2e%2e/security",
