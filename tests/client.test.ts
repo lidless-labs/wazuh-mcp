@@ -415,6 +415,8 @@ describe("WazuhClient", () => {
       requestSpy.mockResolvedValue(mockFetchResponse({ data: {}, error: 0 }));
       await expect(raw("GET", "/")).resolves.toBeDefined();
       await expect(raw("GET", "/manager/logs", { limit: 1 })).resolves.toBeDefined();
+      await expect(raw("GET", "/cluster/status")).resolves.toBeDefined();
+      await expect(raw("GET", "/overview/agents")).resolves.toBeDefined();
     });
   });
 

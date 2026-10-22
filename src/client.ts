@@ -48,9 +48,11 @@ export class WazuhAuthenticationError extends WazuhClientError {
 const READABLE_ENDPOINT_ROOTS: ReadonlySet<string> = new Set([
   "agents",
   "alerts",
+  "cluster",
   "decoders",
   "groups",
   "manager",
+  "overview",
   "rootcheck",
   "rules",
   "sca",
