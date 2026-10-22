@@ -50,7 +50,7 @@ wazuh-mcp is in strong shape: clean domain-per-file structure, 94 green mocked t
 
 ### [INFO] Real lab credentials sit in the untracked working-tree .env
 - **Station:** Hygiene
-- **Where:** `/home/clawdbot/repos/wazuh-mcp/.env`
+- **Where:** `<repo>/.env`
 - **What:** The local `.env` holds a live lab Wazuh URL and password. It is gitignored, was never committed, and a credential grep across all history is clean, so this is local exposure only.
 - **Why it matters:** Any future `.gitignore` refactor or a tool that bundles the working tree (tarballs, AI context dumps) could leak it. The pre-push content-guard hook is the existing backstop.
 - **Fix:** Nothing required for the repo. Optionally move the credential to the workspace-level env store and keep `.env` pointing at a non-production account.

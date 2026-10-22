@@ -210,7 +210,7 @@ describe("Agent Tools", () => {
     it("should sanitize secrets in errors that bypass the client wrappers", async () => {
       vi.mocked(mockClient.getAgents!).mockRejectedValue(
         new Error(
-          "Unexpected token in JSON: Authorization: Bearer eyJhbGciOi.eyJzdWIi.c2lnbmF0dXJl at https://admin:hunter2@wazuh.example.com:55000/agents"
+          "Unexpected token in JSON: Authorization: Bearer eyJhbGciOi.eyJzdWIi.c2lnbmF0dXJl at https://admin:hunter2@wazuh.example.com:55000/agents" // content-guard: allow secret/bearer-token
         )
       );
 
