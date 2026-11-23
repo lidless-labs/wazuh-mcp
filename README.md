@@ -29,9 +29,13 @@ wazuhctrl is a read-only control CLI for the [Wazuh](https://wazuh.com/) SIEM/XD
 
 ## HTTP mode
 
-Streamable HTTP is available when you build from this repository. The published npm package at v2.1.0 supports stdio.
+The npm package supports Streamable HTTP starting with v3.0.0. Use stdio with v2.1.0.
 
-After the [source installation](#installation), start the shared HTTP process:
+```sh
+npx -y wazuh-mcp@3.0.0 --http
+```
+
+If you [build from source](#installation), start the same HTTP listener with:
 
 ```sh
 node dist/mcp-bin.js --http
