@@ -158,6 +158,16 @@ describe("Resources", () => {
   });
 
   describe("wazuh://alerts/recent", () => {
+    it("rejects indexer errors with a sanitized message", async () => {
+      const resources = captureResources(mockClient, {
+        getRecentAlerts: vi.fn().mockRejectedValue(new Error("Indexer unavailable: Bearer synthetic-token")),
+      });
+
+      await expect(resources.get("wazuh://alerts/recent")!()).rejects.toHaveProperty(
+        "message", "Indexer unavailable: Bearer [REDACTED]"
+      );
+    });
+
     it("returns a configuration message instead of throwing when the indexer is not configured", async () => {
       const resources = captureResources(mockClient);
       const result = await resources.get("wazuh://alerts/recent")!();
@@ -188,7 +198,9 @@ describe("Resources", () => {
       const result = await resources.get("wazuh://alerts/recent")!();
       const data = parseResource(result, "wazuh://alerts/recent");
 
-      expect(mockIndexer.getRecentAlerts).toHaveBeenCalledWith(25, 0);
+      expect(mockIndexer.getRecentAlerts).toHaveBeenCalledWith(25, 0, undefined, [
+        "timestamp", "rule.id", "rule.level", "rule.description", "agent.id", "agent.name",
+      ]);
       expect(data).toEqual({
         alerts: [
           {

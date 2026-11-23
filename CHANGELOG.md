@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Authenticated Streamable HTTP via `wazuh-mcp --http`. The executable still defaults to stdio.
 - `WAZUH_TLS_SERVERNAME` and `WAZUH_INDEXER_TLS_SERVERNAME` check the manager or indexer certificate against a configured name instead of the URL host, so a client that reaches Wazuh by a LAN address can verify its default loopback-only certificates (indexer `IP:127.0.0.1`, manager `DNS:localhost`) instead of disabling verification. The chain is still validated against the system roots or the configured CA file. A DNS name is also sent as SNI; an IP address never is. The value is ignored when verification is disabled, and `diagnose_wazuh_connection` reports that.
 
 ### Changed
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Indexer searches now report an error when OpenSearch times out or reports failed shards. The error distinguishes incomplete searches from empty results and missing alerts.
 - `list_rules`, `get_rule`, `search_rules`, `list_decoders`, and the `wazuh://rules/summary` resource fence upstream rule and decoder text as untrusted data and carry the untrusted-data note.
 - `get_rootcheck` returned findings with only `status`. It read the Wazuh 3.x fields `event`, `day`, and `old_day`, which the 4.x API no longer returns. It now maps `log` (fenced as untrusted data), `date_first`, and `date_last`.
 

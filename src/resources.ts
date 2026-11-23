@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WazuhClient } from "./client.js";
 import type { WazuhIndexerClient } from "./indexer-client.js";
+import { safeCaughtErrorMessage } from "./safe-error.js";
 import { UNTRUSTED_DATA_NOTE, formatToolResponse, markUntrusted, markUntrustedDeep } from "./tools/output.js";
 
 export function registerResources(
@@ -68,7 +69,14 @@ export function registerResources(
         };
       }
 
-      const { alerts: rawAlerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(25, 0);
+      const { alerts: rawAlerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(
+        25,
+        0,
+        undefined,
+        ["timestamp", "rule.id", "rule.level", "rule.description", "agent.id", "agent.name"]
+      ).catch((error: unknown) => {
+        throw new Error(safeCaughtErrorMessage(error, "Failed to read recent Wazuh alerts"));
+      });
       const alerts = rawAlerts.map((alert) => ({
         id: alert.id,
         timestamp: alert.timestamp,

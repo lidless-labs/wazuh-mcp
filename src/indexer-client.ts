@@ -20,6 +20,8 @@ interface OpenSearchHit {
 }
 
 interface OpenSearchResponse {
+  timed_out?: boolean;
+  _shards?: { failed: number };
   hits: {
     total: { value: number; relation: string };
     hits: OpenSearchHit[];
@@ -161,8 +163,8 @@ export class WazuhIndexerClient {
     return (await response.json()) as T;
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
-    return this.fetchJson<T>(path, {
+  private async search(path: string, body: unknown): Promise<OpenSearchResponse> {
+    const result = await this.fetchJson<OpenSearchResponse>(path, {
       method: "POST",
       headers: {
         Authorization: this.authHeader,
@@ -171,6 +173,11 @@ export class WazuhIndexerClient {
       body: JSON.stringify(body),
       retryable: true,
     });
+
+    if (result.timed_out === true || (result._shards?.failed ?? 0) > 0) {
+      throw new WazuhIndexerError("Wazuh Indexer returned an incomplete search response");
+    }
+    return result;
   }
 
   async getInfo(): Promise<Record<string, unknown>> {
@@ -316,7 +323,8 @@ export class WazuhIndexerClient {
     query: Record<string, unknown>,
     size: number,
     from: number,
-    sortOrder: "asc" | "desc" = "desc"
+    sortOrder: "asc" | "desc" = "desc",
+    sourceFields?: readonly string[]
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     assertResultWindow(size, from);
     const body = {
@@ -326,9 +334,10 @@ export class WazuhIndexerClient {
       sort: [{ timestamp: { order: sortOrder } }],
       track_total_hits: TRACK_TOTAL_HITS_CAP,
       timeout: SEARCH_TIMEOUT,
+      _source: sourceFields,
     };
 
-    const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
+    const result = await this.search("/wazuh-alerts-*/_search", body);
     return {
       alerts: result.hits.hits.map((h) => this.mapHitToAlert(h)),
       total: result.hits.total.value,
@@ -339,7 +348,8 @@ export class WazuhIndexerClient {
   async getRecentAlerts(
     limit: number,
     offset: number,
-    filters?: AlertFilters
+    filters?: AlertFilters,
+    sourceFields?: readonly string[]
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [];
 
@@ -369,18 +379,19 @@ export class WazuhIndexerClient {
     }
 
     const query = must.length > 0 ? { bool: { must } } : { match_all: {} };
-    return this.searchAlerts(query, limit, offset, filters?.sortOrder);
+    return this.searchAlerts(query, limit, offset, filters?.sortOrder, sourceFields);
   }
 
-  async getAlert(id: string): Promise<WazuhAlert | null> {
+  async getAlert(id: string, sourceFields?: readonly string[]): Promise<WazuhAlert | null> {
     const body = {
       query: { ids: { values: [id] } },
       size: 1,
       track_total_hits: TRACK_TOTAL_HITS_CAP,
       timeout: SEARCH_TIMEOUT,
+      _source: sourceFields,
     };
 
-    const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
+    const result = await this.search("/wazuh-alerts-*/_search", body);
     if (result.hits.hits.length === 0) return null;
     return this.mapHitToAlert(result.hits.hits[0]);
   }
@@ -389,7 +400,8 @@ export class WazuhIndexerClient {
     query: string,
     limit: number,
     offset: number,
-    filters?: AlertFilters
+    filters?: AlertFilters,
+    sourceFields?: readonly string[]
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [
       {
@@ -414,7 +426,7 @@ export class WazuhIndexerClient {
       must.push({ range: { timestamp: timestampRange } });
     }
 
-    return this.searchAlerts({ bool: { must } }, limit, offset);
+    return this.searchAlerts({ bool: { must } }, limit, offset, undefined, sourceFields);
   }
 
   async searchVulnerabilities(
@@ -456,7 +468,7 @@ export class WazuhIndexerClient {
       timeout: SEARCH_TIMEOUT,
     };
 
-    const result = await this.post<OpenSearchResponse>("/wazuh-states-vulnerabilities*/_search", body);
+    const result = await this.search("/wazuh-states-vulnerabilities*/_search", body);
     return {
       vulnerabilities: result.hits.hits.map((h) => this.mapHitToVulnerability(h)),
       total: result.hits.total.value,
