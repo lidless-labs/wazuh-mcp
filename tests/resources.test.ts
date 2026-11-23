@@ -188,7 +188,9 @@ describe("Resources", () => {
       const result = await resources.get("wazuh://alerts/recent")!();
       const data = parseResource(result, "wazuh://alerts/recent");
 
-      expect(mockIndexer.getRecentAlerts).toHaveBeenCalledWith(25, 0);
+      expect(mockIndexer.getRecentAlerts).toHaveBeenCalledWith(25, 0, undefined, [
+        "timestamp", "rule.id", "rule.level", "rule.description", "agent.id", "agent.name",
+      ]);
       expect(data).toEqual({
         alerts: [
           {

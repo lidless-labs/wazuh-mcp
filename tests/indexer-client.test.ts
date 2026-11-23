@@ -91,6 +91,29 @@ describe("WazuhIndexerClient", () => {
     });
   });
 
+  it.each([
+    ["searchAlerts", (client: WazuhIndexerClient) => client.searchAlerts({ match_all: {} }, 10, 0)],
+    ["getRecentAlerts", (client: WazuhIndexerClient) => client.getRecentAlerts(10, 0)],
+    ["fullTextSearch", (client: WazuhIndexerClient) => client.fullTextSearch("test", 10, 0)],
+    ["getAlert", (client: WazuhIndexerClient) => client.getAlert("alert-1")],
+  ] as const)("keeps the full source by default for direct %s callers", async (_name, search) => {
+    requestSpy.mockResolvedValueOnce(mockFetchResponse({
+      hits: {
+        total: { value: 1, relation: "eq" },
+        hits: [{
+          _id: "alert-1",
+          _index: "wazuh-alerts-test",
+          _source: { full_log: "test log", data: { user: "test user" } },
+        }],
+      },
+    }));
+
+    const result = await search(client);
+    const alert = result && "alerts" in result ? result.alerts[0] : result;
+    expect(alert).toMatchObject({ id: "alert-1", full_log: "test log", data: { user: "test user" } });
+    expect(JSON.parse(requestSpy.mock.calls[0][1]!.body!)).not.toHaveProperty("_source");
+  });
+
   it("should sort alert searches by descending timestamp by default", async () => {
     requestSpy.mockResolvedValueOnce(
       mockFetchResponse({ hits: { total: { value: 0, relation: "eq" }, hits: [] } })

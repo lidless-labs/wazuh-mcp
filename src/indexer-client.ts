@@ -323,7 +323,8 @@ export class WazuhIndexerClient {
     query: Record<string, unknown>,
     size: number,
     from: number,
-    sortOrder: "asc" | "desc" = "desc"
+    sortOrder: "asc" | "desc" = "desc",
+    sourceFields?: readonly string[]
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     assertResultWindow(size, from);
     const body = {
@@ -333,6 +334,7 @@ export class WazuhIndexerClient {
       sort: [{ timestamp: { order: sortOrder } }],
       track_total_hits: TRACK_TOTAL_HITS_CAP,
       timeout: SEARCH_TIMEOUT,
+      _source: sourceFields,
     };
 
     const result = await this.search("/wazuh-alerts-*/_search", body);
@@ -346,7 +348,8 @@ export class WazuhIndexerClient {
   async getRecentAlerts(
     limit: number,
     offset: number,
-    filters?: AlertFilters
+    filters?: AlertFilters,
+    sourceFields?: readonly string[]
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [];
 
@@ -376,15 +379,16 @@ export class WazuhIndexerClient {
     }
 
     const query = must.length > 0 ? { bool: { must } } : { match_all: {} };
-    return this.searchAlerts(query, limit, offset, filters?.sortOrder);
+    return this.searchAlerts(query, limit, offset, filters?.sortOrder, sourceFields);
   }
 
-  async getAlert(id: string): Promise<WazuhAlert | null> {
+  async getAlert(id: string, sourceFields?: readonly string[]): Promise<WazuhAlert | null> {
     const body = {
       query: { ids: { values: [id] } },
       size: 1,
       track_total_hits: TRACK_TOTAL_HITS_CAP,
       timeout: SEARCH_TIMEOUT,
+      _source: sourceFields,
     };
 
     const result = await this.search("/wazuh-alerts-*/_search", body);
@@ -396,7 +400,8 @@ export class WazuhIndexerClient {
     query: string,
     limit: number,
     offset: number,
-    filters?: AlertFilters
+    filters?: AlertFilters,
+    sourceFields?: readonly string[]
   ): Promise<{ alerts: WazuhAlert[]; total: number; totalIsLowerBound: boolean }> {
     const must: unknown[] = [
       {
@@ -421,7 +426,7 @@ export class WazuhIndexerClient {
       must.push({ range: { timestamp: timestampRange } });
     }
 
-    return this.searchAlerts({ bool: { must } }, limit, offset);
+    return this.searchAlerts({ bool: { must } }, limit, offset, undefined, sourceFields);
   }
 
   async searchVulnerabilities(

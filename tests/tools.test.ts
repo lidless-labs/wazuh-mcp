@@ -14,7 +14,8 @@ import { registerVulnerabilityTools } from "../src/tools/vulnerabilities.js";
 import { UNTRUSTED_DATA_NOTE } from "../src/tools/output.js";
 import type { WazuhClient } from "../src/client.js";
 import type { WazuhConfig } from "../src/config.js";
-import type { WazuhIndexerClient } from "../src/indexer-client.js";
+import { WazuhIndexerClient } from "../src/indexer-client.js";
+import * as indexerHttp from "../src/http.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: Array<{ type: string; text: string }>;
@@ -400,6 +401,54 @@ describe("Alert Tools", () => {
     tools = captureTools(registerAlertTools, mockClient, mockIndexerClient);
   });
 
+  it.each([
+    ["get_alerts", { search: "synthetic log match" }, []],
+    ["get_alerts", { include_full_log: true }, ["full_log"]],
+    ["search_alerts", { query: "synthetic log match" }, []],
+    ["search_alerts", { query: "synthetic log match", include_full_log: true }, ["full_log"]],
+    ["get_alert", { alert_id: "alert-1" }, []],
+    ["get_alert", { alert_id: "alert-1", include_full_log: true }, ["full_log"]],
+    ["get_alert", { alert_id: "alert-1", include_raw_data: true }, ["data"]],
+    ["get_alert", { alert_id: "alert-1", include_full_log: true, include_raw_data: true }, ["full_log", "data"]],
+  ] as const)("requests the output fields for %s with %j", async (name, args, optionalFields) => {
+    const http = vi.spyOn(indexerHttp, "httpRequest").mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({ hits: { total: { value: 0, relation: "eq" }, hits: [] } }),
+      text: async () => "",
+    });
+    const indexer = new WazuhIndexerClient({
+      url: "https://indexer.example.com:9200",
+      username: "mock-user",
+      password: "mock-password",
+      verifySsl: true,
+    });
+
+    try {
+      const handler = captureTools(registerAlertTools, mockClient, indexer).get(name)!;
+      await handler({ limit: 10, offset: 0, ...args });
+      const body = JSON.parse(http.mock.calls[0][1]!.body!);
+
+      expect(body._source).toEqual(expect.arrayContaining([
+        "timestamp", "rule.id", "rule.level", "rule.description", "rule.groups", "rule.mitre",
+        "agent.id", "agent.name", "location", "decoder.name", ...optionalFields,
+      ]));
+      expect(body._source).toHaveLength(10 + optionalFields.length);
+      if ("query" in args || "search" in args) {
+        expect(body.query.bool.must).toContainEqual({
+          multi_match: {
+            query: "synthetic log match",
+            fields: ["full_log", "rule.description", "agent.name"],
+            type: "best_fields",
+          },
+        });
+      }
+    } finally {
+      http.mockRestore();
+    }
+  });
+
   describe("get_alerts", () => {
     it("should return formatted alerts", async () => {
       vi.mocked(mockIndexerClient.getRecentAlerts!).mockResolvedValue({
@@ -416,7 +465,9 @@ describe("Alert Tools", () => {
             agent: { id: "001", name: "server-1" },
             location: "/var/log/auth.log",
             decoder: { name: "sshd" },
-            full_log: "Jan 15 10:30:00 server sshd: Failed password",
+            get full_log(): string {
+              throw new Error("Omitted log was read");
+            },
           },
         ],
         total: 1,
@@ -480,7 +531,8 @@ describe("Alert Tools", () => {
       expect(mockIndexerClient.getRecentAlerts).toHaveBeenCalledWith(
         10,
         0,
-        expect.objectContaining({ level: 12 })
+        expect.objectContaining({ level: 12 }),
+        expect.any(Array)
       );
     });
 
@@ -497,7 +549,8 @@ describe("Alert Tools", () => {
       expect(mockIndexerClient.getRecentAlerts).toHaveBeenCalledWith(
         10,
         0,
-        expect.objectContaining({ sortOrder: "asc" })
+        expect.objectContaining({ sortOrder: "asc" }),
+        expect.any(Array)
       );
       expect(data.sort).toBe("+timestamp");
     });
@@ -522,7 +575,8 @@ describe("Alert Tools", () => {
         expect.objectContaining({
           start_time: "2026-01-01T00:00:00.000Z",
           end_time: "2026-01-02T00:00:00.000Z",
-        })
+        }),
+        expect.any(Array)
       );
     });
   });
@@ -534,8 +588,12 @@ describe("Alert Tools", () => {
         timestamp: "2026-01-15T10:30:00.000Z",
         rule: { id: "5710", level: 5, description: "SSH login attempt" },
         agent: { id: "001", name: "server-1" },
-        full_log: "sensitive raw alert log",
-        data: { user: "root" },
+        get full_log(): string {
+          throw new Error("Omitted log was read");
+        },
+        get data(): Record<string, unknown> {
+          throw new Error("Omitted raw data was read");
+        },
       } as never);
 
       const handler = tools.get("get_alert")!;
@@ -603,7 +661,8 @@ describe("Alert Tools", () => {
         "brute force",
         10,
         0,
-        { level: undefined, agent_id: undefined }
+        { level: undefined, agent_id: undefined },
+        expect.any(Array)
       );
     });
 

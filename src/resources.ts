@@ -68,7 +68,12 @@ export function registerResources(
         };
       }
 
-      const { alerts: rawAlerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(25, 0);
+      const { alerts: rawAlerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(
+        25,
+        0,
+        undefined,
+        ["timestamp", "rule.id", "rule.level", "rule.description", "agent.id", "agent.name"]
+      );
       const alerts = rawAlerts.map((alert) => ({
         id: alert.id,
         timestamp: alert.timestamp,

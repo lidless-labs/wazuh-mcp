@@ -13,7 +13,6 @@ import {
   markUntrusted,
   markUntrustedDeep,
   paginationMetadata,
-  withOptionalField,
 } from "./output.js";
 import {
   agentIdSchema,
@@ -34,9 +33,31 @@ const alertSortSchema = z
   .default("-timestamp")
   .describe("Sort by timestamp. Use '-timestamp' for newest first or '+timestamp' for oldest first.");
 
+const ALERT_SUMMARY_SOURCE_FIELDS = [
+  "timestamp",
+  "rule.id",
+  "rule.level",
+  "rule.description",
+  "rule.groups",
+  // Keep the object present even if none of its keys are recognized by the mapper.
+  "rule.mitre",
+  "agent.id",
+  "agent.name",
+  "location",
+  "decoder.name",
+] as const;
+
+function alertSourceFields(includeFullLog: boolean, includeRawData = false): readonly string[] {
+  return [
+    ...ALERT_SUMMARY_SOURCE_FIELDS,
+    ...(includeFullLog ? ["full_log"] : []),
+    ...(includeRawData ? ["data"] : []),
+  ];
+}
+
 // agent_name, location, and decoder are reported by or derived from the
 // monitored endpoint, so they are fenced like rule_description and full_log.
-function alertSummary(alert: WazuhAlert): Record<string, unknown> {
+function alertSummary(alert: WazuhAlert, includeFullLog: boolean): Record<string, unknown> {
   return {
     id: alert.id,
     timestamp: alert.timestamp,
@@ -49,6 +70,7 @@ function alertSummary(alert: WazuhAlert): Record<string, unknown> {
     location: markUntrusted(alert.location),
     decoder: markUntrusted(alert.decoder?.name),
     mitre: alert.rule?.mitre,
+    ...(includeFullLog ? { full_log: markUntrusted(alert.full_log) } : {}),
   };
 }
 
@@ -112,25 +134,15 @@ export function registerAlertTools(
       if (windowError) return windowErrorResponse(windowError);
 
       try {
-        const { alerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(limit, offset, {
-          level,
-          agent_id,
-          rule_id,
-          search,
-          start_time,
-          end_time,
-          sortOrder: parseTimestampSort(sort),
-        });
+        const { alerts, total, totalIsLowerBound } = await indexerClient.getRecentAlerts(
+          limit,
+          offset,
+          { level, agent_id, rule_id, search, start_time, end_time, sortOrder: parseTimestampSort(sort) },
+          alertSourceFields(include_full_log)
+        );
 
         const result = {
-          alerts: alerts.map((alert) =>
-            withOptionalField(
-              alertSummary(alert),
-              "full_log",
-              markUntrusted(alert.full_log),
-              include_full_log
-            )
-          ),
+          alerts: alerts.map((alert) => alertSummary(alert, include_full_log)),
           total,
           limit,
           offset,
@@ -171,7 +183,10 @@ export function registerAlertTools(
       }
 
       try {
-        const alert = await indexerClient.getAlert(alert_id);
+        const alert = await indexerClient.getAlert(
+          alert_id,
+          alertSourceFields(include_full_log, include_raw_data)
+        );
 
         if (!alert) {
           return {
@@ -185,19 +200,9 @@ export function registerAlertTools(
           };
         }
 
-        const summary = withOptionalField(
-          withOptionalField(
-            alertSummary(alert),
-            "full_log",
-            markUntrusted(alert.full_log),
-            include_full_log
-          ),
-          "data",
-          markUntrustedDeep(alert.data, true),
-          include_raw_data
-        );
         const result = {
-          ...summary,
+          ...alertSummary(alert, include_full_log),
+          ...(include_raw_data ? { data: markUntrustedDeep(alert.data, true) } : {}),
           output: {
             full_log_included: include_full_log,
             raw_data_included: include_raw_data,
@@ -254,22 +259,16 @@ export function registerAlertTools(
       if (windowError) return windowErrorResponse(windowError);
 
       try {
-        const { alerts, total, totalIsLowerBound } = await indexerClient.fullTextSearch(query, limit, offset, {
-          level,
-          agent_id,
-          start_time,
-          end_time,
-        });
+        const { alerts, total, totalIsLowerBound } = await indexerClient.fullTextSearch(
+          query,
+          limit,
+          offset,
+          { level, agent_id, start_time, end_time },
+          alertSourceFields(include_full_log)
+        );
 
         const result = {
-          alerts: alerts.map((alert) =>
-            withOptionalField(
-              alertSummary(alert),
-              "full_log",
-              markUntrusted(alert.full_log),
-              include_full_log
-            )
-          ),
+          alerts: alerts.map((alert) => alertSummary(alert, include_full_log)),
           total,
           query,
           limit,
