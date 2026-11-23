@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WazuhIndexerClient } from "../src/indexer-client.js";
+import { WazuhIndexerClient, WazuhIndexerError } from "../src/indexer-client.js";
 import { httpRequest, type HttpResponse } from "../src/http.js";
 
 vi.mock("../src/http.js", async (importOriginal) => {
@@ -38,6 +38,57 @@ describe("WazuhIndexerClient", () => {
 
   afterEach(() => {
     requestSpy.mockReset();
+  });
+
+  describe.each([
+    ["timed-out", true, 0],
+    ["failed-shard", false, 1],
+  ] as const)("%s HTTP 200 search response", (_outcome, timedOut, failed) => {
+    const searchCases = [
+      ["alert list with a hit", (client: WazuhIndexerClient) => client.getRecentAlerts(10, 0), [
+        { _id: "alert-1", _index: "wazuh-alerts-test", _source: { timestamp: "2026-01-01T00:00:00Z" } },
+      ]],
+      ["single alert lookup with no hits", (client: WazuhIndexerClient) => client.getAlert("alert-1"), []],
+      ["vulnerability list with a hit", (client: WazuhIndexerClient) => client.searchVulnerabilities(10, 0), [
+        { _id: "vuln-1", _index: "wazuh-states-vulnerabilities-test", _source: { vulnerability: { id: "CVE-2020-14393" } } },
+      ]],
+    ] as const;
+
+    it.each(searchCases)("rejects the %s", async (_operation, search, hits) => {
+      requestSpy.mockResolvedValueOnce(mockFetchResponse({
+        took: 15,
+        timed_out: timedOut,
+        _shards: {
+          total: 2,
+          successful: 2 - failed,
+          skipped: 0,
+          failed,
+          ...(failed ? { failures: [{ reason: { reason: "synthetic private shard detail" } }] } : {}),
+        },
+        hits: { total: { value: hits.length, relation: "eq" }, hits },
+      }));
+
+      const result = search(client);
+      await expect(result).rejects.toBeInstanceOf(WazuhIndexerError);
+      await expect(result).rejects.toHaveProperty(
+        "message", "Wazuh Indexer returned an incomplete search response"
+      );
+    });
+  });
+
+  it("preserves lower-bound totals for a complete search response", async () => {
+    requestSpy.mockResolvedValueOnce(mockFetchResponse({
+      took: 15,
+      timed_out: false,
+      _shards: { total: 2, successful: 2, skipped: 0, failed: 0 },
+      hits: { total: { value: 10_000, relation: "gte" }, hits: [] },
+    }));
+
+    await expect(client.searchAlerts({ match_all: {} }, 0, 0)).resolves.toEqual({
+      alerts: [],
+      total: 10_000,
+      totalIsLowerBound: true,
+    });
   });
 
   it("should sort alert searches by descending timestamp by default", async () => {

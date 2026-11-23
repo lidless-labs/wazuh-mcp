@@ -20,6 +20,8 @@ interface OpenSearchHit {
 }
 
 interface OpenSearchResponse {
+  timed_out?: boolean;
+  _shards?: { failed: number };
   hits: {
     total: { value: number; relation: string };
     hits: OpenSearchHit[];
@@ -161,8 +163,8 @@ export class WazuhIndexerClient {
     return (await response.json()) as T;
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
-    return this.fetchJson<T>(path, {
+  private async search(path: string, body: unknown): Promise<OpenSearchResponse> {
+    const result = await this.fetchJson<OpenSearchResponse>(path, {
       method: "POST",
       headers: {
         Authorization: this.authHeader,
@@ -171,6 +173,11 @@ export class WazuhIndexerClient {
       body: JSON.stringify(body),
       retryable: true,
     });
+
+    if (result.timed_out === true || (result._shards?.failed ?? 0) > 0) {
+      throw new WazuhIndexerError("Wazuh Indexer returned an incomplete search response");
+    }
+    return result;
   }
 
   async getInfo(): Promise<Record<string, unknown>> {
@@ -328,7 +335,7 @@ export class WazuhIndexerClient {
       timeout: SEARCH_TIMEOUT,
     };
 
-    const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
+    const result = await this.search("/wazuh-alerts-*/_search", body);
     return {
       alerts: result.hits.hits.map((h) => this.mapHitToAlert(h)),
       total: result.hits.total.value,
@@ -380,7 +387,7 @@ export class WazuhIndexerClient {
       timeout: SEARCH_TIMEOUT,
     };
 
-    const result = await this.post<OpenSearchResponse>("/wazuh-alerts-*/_search", body);
+    const result = await this.search("/wazuh-alerts-*/_search", body);
     if (result.hits.hits.length === 0) return null;
     return this.mapHitToAlert(result.hits.hits[0]);
   }
@@ -456,7 +463,7 @@ export class WazuhIndexerClient {
       timeout: SEARCH_TIMEOUT,
     };
 
-    const result = await this.post<OpenSearchResponse>("/wazuh-states-vulnerabilities*/_search", body);
+    const result = await this.search("/wazuh-states-vulnerabilities*/_search", body);
     return {
       vulnerabilities: result.hits.hits.map((h) => this.mapHitToVulnerability(h)),
       total: result.hits.total.value,
