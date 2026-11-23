@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Replace calls to `WazuhClient.request()` and `WazuhClient.get()` with the specific read methods, such as `getAgents()` or `getRules()`.
 - Remove `include_sensitive_config` from `get_manager_config` calls and `WAZUH_ALLOW_SENSITIVE_CONFIG` from the environment. The tool always redacts credential-bearing keys.
+- When reading `WazuhRootcheckResult`, use `log` for `event`, `date_first` for `old_day`, and `date_last` for `day`.
 - The default MCP response cap is now 90,000 bytes. Set `WAZUH_MCP_MAX_RESPONSE_BYTES=250000` to keep the previous cap.
 
 ### Added
@@ -34,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 
-- Updated the MCP SDK's transitive HTTP dependencies, including Hono 4.13.20 and `@hono/node-server` 2.1.11, to clear the production dependency audit.
+- The lockfile updates the MCP SDK to 1.32.1 and Zod to 4.6.7. It also updates audited HTTP dependencies, including Hono 4.13.20 and `@hono/node-server` 2.1.11.
 
 ## [2.1.0] - 2026-10-06
 
@@ -309,8 +310,8 @@ rules, decoders, SCA, syscollector, rootcheck, FIM, manager logs and
 configuration, groups, and connection diagnostics, with optional Wazuh
 Indexer (OpenSearch) support for alert queries.
 
-[Unreleased]: https://github.com/lidless-labs/wazuh-mcp/compare/v3.0.0...HEAD
-[3.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.1.0...v3.0.0
+[Unreleased]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.1.0...HEAD
+[3.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.1.0...82631a6
 [2.1.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.4...v2.0.0
 [1.1.4]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.0...v1.1.4
