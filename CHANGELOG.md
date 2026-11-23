@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0]
+
+### Upgrading from 2.1.0
+
+- Replace calls to `WazuhClient.request()` and `WazuhClient.get()` with the specific read methods, such as `getAgents()` or `getRules()`.
+- Remove `include_sensitive_config` from `get_manager_config` calls and `WAZUH_ALLOW_SENSITIVE_CONFIG` from the environment. The tool always redacts credential-bearing keys.
+- When reading `WazuhRootcheckResult`, use `log` for `event`, `date_first` for `old_day`, and `date_last` for `day`.
+- The default MCP response cap is now 90,000 bytes. Set `WAZUH_MCP_MAX_RESPONSE_BYTES=250000` to keep the previous cap.
+
 ### Added
 
 - Authenticated Streamable HTTP via `wazuh-mcp --http`. The executable still defaults to stdio.
@@ -14,9 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `get_manager_config` always redacts credential-bearing keys. The `include_sensitive_config` argument and the `WAZUH_ALLOW_SENSITIVE_CONFIG` setting are removed; the setting is now ignored.
-- `WazuhClient` no longer exports a generic `request()` or `get()`. It exposes the fixed read methods only, and the internal request path accepts GET against an allowlist of Wazuh API collections.
-- The default `WAZUH_MCP_MAX_RESPONSE_BYTES` is now 90000 (was 250000), so a truncated response fits under 100,000 bytes. Set the variable to raise it.
+- Alert tools and the recent-alert resource fetch the fields they use. Full logs and raw data retain their per-call opt-ins.
 - Every tool declares `idempotentHint: true` alongside `readOnlyHint` and `openWorldHint`.
 - The publish workflow builds, tests, and packs in a job without registry credentials, then publishes the packed tarball from a separate job that installs no dependencies.
 
@@ -25,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Indexer searches now report an error when OpenSearch times out or reports failed shards. The error distinguishes incomplete searches from empty results and missing alerts.
 - `list_rules`, `get_rule`, `search_rules`, `list_decoders`, and the `wazuh://rules/summary` resource fence upstream rule and decoder text as untrusted data and carry the untrusted-data note.
 - `get_rootcheck` returned findings with only `status`. It read the Wazuh 3.x fields `event`, `day`, and `old_day`, which the 4.x API no longer returns. It now maps `log` (fenced as untrusted data), `date_first`, and `date_last`.
+
+### Dependencies
+
+- The lockfile updates the MCP SDK to 1.32.1 and Zod to 4.6.7. It also updates audited HTTP dependencies, including Hono 4.13.20 and `@hono/node-server` 2.1.11.
 
 ## [2.1.0] - 2026-10-06
 
@@ -300,6 +311,7 @@ configuration, groups, and connection diagnostics, with optional Wazuh
 Indexer (OpenSearch) support for alert queries.
 
 [Unreleased]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.1.0...HEAD
+[3.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.1.0...82631a6
 [2.1.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.4...v2.0.0
 [1.1.4]: https://github.com/lidless-labs/wazuh-mcp/compare/v1.1.0...v1.1.4
