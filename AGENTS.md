@@ -44,6 +44,20 @@ Report actual results. If anything fails, report the failure verbatim and do not
 - Adding alert or vulnerability features: Wazuh 4.x serves those from the indexer, not the manager REST API. Manager-only setups legitimately lack them; preserve the graceful configuration message.
 - Adding files in the repo root: `.gitignore` ignores `*.js` and `*.d.ts` everywhere except `tsup.config.ts` and `vitest.config.ts`. Verify new files are actually tracked with `git status`.
 
+## GitHub agent attribution
+
+Every issue body, pull request body, and GitHub comment an agent writes or edits on Solomon's behalf in this repository ends with this block. Keep the human author identity. Use the actual model, harness, and client. Credit only work performed, include the provider if a model name is ambiguous, and list each review pass. Report the exact checks and observed results above the block. Credit verification to the model that ran the checks.
+
+```text
+Sent on behalf of Solomon by <orchestrator model> via <harness> in <client>
+Models used:
+- Implementation/build: <model> via <harness>, or none
+- Test/verification: <model> via <harness> (checks: listed above), or not run
+- Review: <model> via <harness> for each pass, or none
+```
+
+Every agent-written review comment and review summary on Solomon's behalf also includes `Review by <model> via <harness> in <client>`.
+
 ## Memory Handoff
 At the end of any substantial task, write a handoff note to `.claude/memory-handoffs/` using that directory's `TEMPLATE.md`.
 Record durable discoveries, gotchas, and decisions. Do not wait to be reminded.
