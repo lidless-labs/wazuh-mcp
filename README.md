@@ -29,10 +29,11 @@ wazuhctrl is a read-only control CLI for the [Wazuh](https://wazuh.com/) SIEM/XD
 
 ## HTTP mode
 
-Run a shared HTTP process from the built repository:
+Streamable HTTP is available when you build from this repository. The published npm package at v2.1.0 supports stdio.
+
+After the [source installation](#installation), start the shared HTTP process:
 
 ```sh
-npm run build
 node dist/mcp-bin.js --http
 # The existing wazuh-mcp bin also accepts --http.
 ```
@@ -125,7 +126,7 @@ runs the built `dist/mcp-bin.js --http` entry point with `NoNewPrivileges=true`,
 
 ## What it does
 
-wazuhctrl and wazuh-mcp turn a Wazuh SIEM/XDR deployment into typed operator surfaces. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. The CLI starts with status, agent inventory, and diagnostics for shells, cron, and CI. The package ships 28 MCP tools, 3 resources, and 3 guided prompts over stdio or Streamable HTTP. Both surfaces only read from Wazuh: the sole writes they perform are JWT authentication against the manager and `_search` queries against the indexer.
+wazuhctrl and wazuh-mcp turn a Wazuh SIEM/XDR deployment into typed operator surfaces. Point your MCP client at the server, give it your Wazuh manager and (optionally) Wazuh Indexer credentials, and the model can list active and disconnected agents, retrieve and full-text search security alerts, pull vulnerability inventory by CVE or severity, inspect detection rules and decoders, review SCA (Security Configuration Assessment) results, walk system inventory (OS, packages, processes, ports, network, hotfixes), read File Integrity Monitoring and rootcheck findings, fetch manager logs and configuration, and run a connection diagnostic. The CLI starts with status, agent inventory, and diagnostics for shells, cron, and CI. The MCP adapter exposes 28 tools, 3 resources, and 3 guided prompts. Both the CLI and MCP adapter use read-only Wazuh operations. They use POST for manager JWT authentication and indexer `_search` queries.
 
 ## Installation
 
@@ -679,7 +680,7 @@ and their compliance framework mappings.
 
 - **Not a write path.** No tool modifies Wazuh state. It cannot restart agents, edit rules, acknowledge alerts, or change configuration. The only writes are JWT authentication and indexer `_search` queries.
 - **Not a replacement for the Wazuh dashboard or SIEM.** It is a query surface for AI clients, not an analyst UI, a data store, or an alerting engine.
-- **Not a hosted service.** It runs locally as a stdio MCP server next to your client. Your Wazuh credentials stay on your machine, in the wrapper's env file or your client's config.
+- **Self-hosted.** Run the adapter next to your client over stdio or run it yourself over HTTP. Keep Wazuh credentials in the server process's environment.
 - **Not a guarantee against prompt injection.** It delimits attacker-influenced SIEM content and warns the model, which reduces risk but does not eliminate it. Treat tool output as data, not instructions.
 - **Not a way to bypass Wazuh access control.** It uses the credentials you give it and can see only what that account can see.
 

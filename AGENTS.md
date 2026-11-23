@@ -1,6 +1,6 @@
 # Repository Guidance
 
-Read-only TypeScript MCP server for the Wazuh SIEM/XDR platform: 28 tools, 3 resources, 3 prompts over stdio. Published to npm as `wazuh-mcp`.
+Read-only TypeScript CLI and MCP server for the Wazuh SIEM/XDR platform. The server exposes 28 tools, 3 resources, and 3 prompts over stdio and Streamable HTTP. The npm package is `wazuh-mcp`.
 
 ## Definition of Done
 ```bash
@@ -25,9 +25,9 @@ Report actual results. If anything fails, report the failure verbatim and do not
 - Hit a blocker (missing dep, failing hook, ambiguous requirement)? Report the exact blocker and stop. Do not work around it.
 
 ## Project Shape
-- `src/index.ts` is the only entry point. It builds `WazuhClient` (manager REST API, JWT auth) and optional `WazuhIndexerClient` (OpenSearch, Basic auth), then calls the per-domain `register*Tools()` functions.
+- `src/mcp-bin.ts` starts the MCP server over stdio or selects `src/mcp-http.ts` with `--http`. `src/mcp-server.ts` wires the manager and optional indexer clients into per-domain tool registrations. `src/cli.ts` starts `wazuhctrl` and `wazuhctl`. `src/index.ts` exports the library API.
 - Tools live one domain per file under `src/tools/` (agents, alerts, rules, decoders, sca, syscollector, rootcheck, syscheck, manager, groups, vulnerabilities, diagnostics, version). Shared input schemas: `src/tools/schemas.ts`. Output shaping: `src/tools/output.ts`. Field redaction: `src/tools/redaction.ts`.
-- Config comes from `WAZUH_*` env vars, parsed in `src/config.ts`. Alert and vulnerability tools require `WAZUH_INDEXER_URL`; without it they return a configuration message, not an error. Keep that behavior.
+- Config comes from `WAZUH_*` env vars, parsed in `src/config.ts`. On manager-only setups, alert and vulnerability tools return a configuration message without making an upstream request. Preserve that behavior.
 
 ## Verification Commands
 - `npm test` runs the vitest suite (`tests/*.test.ts`), all mocked, no live Wazuh needed.
